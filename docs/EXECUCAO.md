@@ -139,3 +139,42 @@ ALLOW_LOCAL_INTEGRATIONS permite HTTP e destinos privados para laboratório/LAN.
 O intervalo de repetição usa relógio real, independente de avanço virtual. Retentativas não alteram message_id. Perfil do job é congelado no enqueue; alterar URL/headers não modifica jobs antigos.
 
 DB_PATH permite escolher outro banco, sem alterar o existente. Não operar dois processos sobre o mesmo laboratório simultaneamente.
+
+## Atualização v0.4.0 — propriedades e horários por dia
+
+Mesmo processo de atualização: parar, fazer backup de data, git pull --ff-only, npm test e npm start. A migração preserva contas, GUIDs e agendas existentes.
+
+### Dias da semana
+
+1. Abrir Dispositivos e regras → Agendas.
+2. Escolher Dias da semana.
+3. Marcar Segunda-feira, Terça-feira etc. como checkboxes.
+4. Em cada dia marcado, configurar início e término por duração ou hora final.
+5. Adicionar horário neste dia permite uma segunda janela, por exemplo 06:00 e 18:00.
+6. Desmarcar um dia impede agendamento nele.
+7. Publicar e avançar relógio/aguardar dispositivo conectado e ocioso para aplicar.
+
+Exemplo: segunda 06:00 por 600 s, terça 16:30 até 16:40, sexta 07:00 por 600 s. No híbrido, esses horários delimitam janelas de avaliação por umidade, sem garantir abertura se o solo estiver suficientemente úmido.
+
+### Propriedades e áreas
+
+1. Como admin, abrir Propriedades e áreas.
+2. Preencher nome/fuso e Cadastrar nova propriedade; selecioná-la no filtro superior.
+3. Cadastrar áreas e dispositivos. No editor de dispositivo, escolher área no seletor.
+4. Área pertence à propriedade escolhida; associação a área externa é rejeitada pela API.
+5. Atualizar área selecionada preserva ID e histórico.
+6. Fuso da propriedade sugere o fuso para novos dispositivos; alterar propriedade não altera silenciosamente agendas já configuradas em dispositivos existentes.
+
+### Usuários e vínculos
+
+A conta admin original administra o sistema. Na propriedade selecionada:
+
+- Criar usuário e vincular: nome, senha de pelo menos 10 caracteres, perfil administrador da propriedade ou operador.
+- Vincular usuário existente / alterar perfil: concede acesso à propriedade selecionada ou atualiza perfil.
+- Um usuário pode ter propriedades/perfis diferentes. O filtro mostra somente seus vínculos.
+- Usuário administrador de propriedade configura seus dispositivos, mas não administra contas globais nem o relógio global do laboratório.
+- Operador não pode publicar configurações, gerar tokens ou alterar integração.
+
+Teste recomendado: criar propriedade B e usuário operador B. Entrar em janela separada com esse usuário; confirmar que dispositivos da propriedade principal não aparecem e seus GUIDs não podem ser consultados/acionados.
+
+Gerenciamento de usuários requer conta admin do sistema. As duas contas iniciais continuam válidas na propriedade principal.

@@ -143,3 +143,7 @@ Portal: responsivo, acessível, português brasileiro, estados vazios e erros re
 Simulador: determinístico, tempo virtual, falhas reproduzíveis e marcação explícita.
 Firmware futuro: C++, controle não bloqueante, watchdog, TLS validado, armazenamento atômico, estado seguro no boot, memória/fila limitadas.
 Operação local deve continuar com configuração válida quando a nuvem cair. Offline não remove limite de duração nem exige autorização remota para parar.
+
+## Adendo confirmado em 13/10/2026
+
+Seleção semanal com checkboxes nomeados de segunda a domingo. Cada dia marcado permite horários próprios, com hora final ou duração, e múltiplos horários naquele dia. A v0.4 implementa day_times; agendas antigas continuam aceitas. Propriedades/áreas e vínculos humanos são implementados no portal; ver VALIDACAO_V04.md.

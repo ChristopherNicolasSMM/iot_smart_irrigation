@@ -5,18 +5,20 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Engine, ValidationError, demoConfig } from './engine.js';
-import { Outbox, normalizeProfile, envelope, mappedPayload } from './integration.js';
+import { Outbox, normalizeProfile, envelope, mappedPayload, defaultProfile } from './integration.js';
 import { initIngestion, tokenHash, ingest } from './ingestion.js';
+import { Properties, AccessError } from './properties.js';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.ADMIN_PASSWORD||'admin-demo-2026',operatorPassword=process.env.OPERATOR_PASSWORD||'operador-demo-2026',allowLocalIntegrations=process.env.ALLOW_LOCAL_INTEGRATIONS==='1',transport}={}){
  if(dbPath!==':memory:')mkdirSync(dirname(resolve(dbPath)),{recursive:true});const db=new DatabaseSync(dbPath);
  db.exec('PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY,body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT,device TEXT,body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS samples (id INTEGER PRIMARY KEY AUTOINCREMENT,device TEXT,body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY,role TEXT,salt TEXT,hash TEXT); CREATE INDEX IF NOT EXISTS events_device ON events(device,id); CREATE INDEX IF NOT EXISTS samples_device ON samples(device,id);');
  db.exec('CREATE TABLE IF NOT EXISTS configuration_versions(device TEXT,revision INTEGER,status TEXT,body TEXT,published_at TEXT,applied_at TEXT,error TEXT,PRIMARY KEY(device,revision));');
  initIngestion(db);
- const sessions=new Map(),attempts=new Map();for(const [username,role,password] of [['admin','admin',adminPassword],['operador','operator',operatorPassword]])if(!db.prepare('SELECT username FROM users WHERE username=?').get(username)){const salt=randomBytes(16).toString('hex');db.prepare('INSERT INTO users VALUES (?,?,?,?)').run(username,role,salt,scryptSync(password,salt,32).toString('hex'));}
+ const sessions=new Map(),attempts=new Map();for(const [username,role,password] of [['admin','admin',adminPassword],['operador','operator',operatorPassword]])if(!db.prepare('SELECT username FROM users WHERE username=?').get(username)){const salt=randomBytes(16).toString('hex');db.prepare('INSERT INTO users(username,role,salt,hash) VALUES (?,?,?,?)').run(username,role,salt,scryptSync(password,salt,32).toString('hex'));}
  let state=JSON.parse(db.prepare('SELECT body FROM state WHERE id=1').get()?.body||JSON.stringify(Engine.fresh()));state.event_seq??=0;
  state.integration=normalizeProfile(state.integration||{url:'',method:'POST',body:{schema_version:1,message_id:'{{message.message_id}}',device_guid:'{{device.guid}}',recorded_at:'{{message.recorded_at}}',readings:'{{message.readings}}',events:'{{message.events}}',outputs:'{{message.outputs}}',simulated:true},accepted_status:[200,201],ack_path:'accepted'});
  for(const d of state.devices){d.desired_revision??=d.revision;d.desired_config??=structuredClone(d.config);d.config_status??='applied';d.integration??=structuredClone(state.integration);}
+ const properties=new Properties(db,state);
  let outbox;
  const engine=new Engine(state,event=>{
   event.message_id??=randomUUID();
@@ -33,18 +35,18 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
  outbox=new Outbox(db,{transport,allowLocal:allowLocalIntegrations,online:guid=>state.devices.find(d=>d.guid===guid)?.online,onOutcome:integrationOutcome});
  const save=()=>db.prepare('INSERT INTO state(id,body) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(JSON.stringify(state));
  function mutate(fn){const previous=structuredClone(state);db.exec('BEGIN');try{const result=fn();save();db.exec('COMMIT');return result;}catch(e){db.exec('ROLLBACK');state=previous;engine.s=state;throw e;}}
- if(!db.prepare('SELECT body FROM state WHERE id=1').get())mutate(()=>engine.add(demoConfig(),'97e157ec-93ab-4d4d-93c9-2ec7077746ec'));
+ if(!db.prepare('SELECT body FROM state WHERE id=1').get())mutate(()=>{const config=properties.bind(demoConfig(),'property-default'),d=engine.add(config,'97e157ec-93ab-4d4d-93c9-2ec7077746ec',{property_id:'property-default'});d.property_id='property-default';d.area_id=config.area_id;});
  // An application restart must not resume an energized output from persisted state.
  if(state.devices.some(d=>Object.keys(d.active).length))mutate(()=>{for(const d of state.devices)if(Object.keys(d.active).length)engine.reboot(d);});
  for(const d of state.devices)db.prepare("INSERT OR IGNORE INTO configuration_versions VALUES(?,?,'applied',?,?,?,NULL)").run(d.guid,d.revision,JSON.stringify(d.config),new Date(state.now*1000).toISOString(),new Date(state.now*1000).toISOString());
- const publicFiles={'/':'index.html','/local':'index.html','/app.js':'app.js','/style.css':'style.css'};
+ const publicFiles={'/':'index.html','/local':'index.html','/app.js':'app.js','/schedules.js':'schedules.js','/style.css':'style.css'};
  const handler=async(req,res)=>{
   const send=(status,body)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(body));};
   try{
    const url=new URL(req.url,'http://localhost');const p=url.pathname;
    res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
    if(req.method==='GET'&&publicFiles[p]){res.setHeader('Content-Type',p.endsWith('.js')?'text/javascript; charset=utf-8':p.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8');res.end(readFileSync(resolve(root,'public',publicFiles[p])));return;}
-   if(req.method==='GET'&&p==='/health'){send(200,{ok:true,version:'0.3.0',simulated:true});return;}
+   if(req.method==='GET'&&p==='/health'){send(200,{ok:true,version:'0.4.0',simulated:true});return;}
    if(req.method!=='GET'){
     if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host) {send(403,{error:'Origem não autorizada'});return;}}
     if(req.headers['content-type']?.split(';')[0]!=='application/json'){send(415,{error:'Envie application/json'});return;}
@@ -64,29 +66,39 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
    }
    const token=req.headers.cookie?.split(';').map(s=>s.trim()).find(s=>s.startsWith('session='))?.slice(8);const session=sessions.get(token);if(!session||session.until<Date.now()){send(401,{error:'Faça login'});return;}
    if(req.method==='POST'&&p==='/api/logout'){sessions.delete(token);res.setHeader('Set-Cookie','session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');send(200,{ok:true});return;}
-   if(req.method==='GET'&&p==='/api/state'){send(200,{...state,devices:state.devices.map(d=>({...d,integration:{...(d.integration||state.integration),header_names:Object.keys(outbox.getHeaders(d.guid)),local_destinations_allowed:allowLocalIntegrations}})),integration:{...state.integration,header_names:[],local_destinations_allowed:allowLocalIntegrations},user:{username:session.username,role:session.role},simulated:true});return;}
-   if(req.method==='GET'&&['/api/events','/api/history'].includes(p)){const table=p==='/api/events'?'events':'samples',guid=url.searchParams.get('guid');const rows=guid?db.prepare(`SELECT body FROM ${table} WHERE device=? ORDER BY id DESC LIMIT 500`).all(guid):db.prepare(`SELECT body FROM ${table} ORDER BY id DESC LIMIT 500`).all();send(200,rows.map(r=>JSON.parse(r.body)));return;}
-   if(req.method==='GET'&&p==='/api/configurations'){const guid=url.searchParams.get('guid');send(200,db.prepare('SELECT revision,status,published_at,applied_at,error FROM configuration_versions WHERE device=? ORDER BY revision DESC LIMIT 100').all(guid||''));return;}
-   if(req.method==='GET'&&p==='/api/outbox'){send(200,outbox.list(url.searchParams.get('guid')));return;}
+   const scope=properties.scope(session),authorized=()=>state.devices.filter(d=>d.property_id===scope.property.id);
+   const deviceByGuid=guid=>{const d=authorized().find(d=>d.guid===guid);if(!d)throw new AccessError();return d;};
+   const device=()=>deviceByGuid(body.guid);
+   if(req.method==='GET'&&p==='/api/state'){send(200,{now:state.now,seed:state.seed,paused:state.paused,speed:state.speed,properties:properties.list(session.username),property_id:scope.property.id,areas:properties.areaList(scope.property.id),devices:authorized().map(d=>({...d,integration:{...(d.integration||state.integration),header_names:Object.keys(outbox.getHeaders(d.guid)),local_destinations_allowed:allowLocalIntegrations}})),integration:{enabled:false,url:'',header_names:[]},user:{username:session.username,role:scope.role,system_admin:scope.system_admin},simulated:true});return;}
+   if(req.method==='GET'&&p==='/api/properties'){send(200,properties.list(session.username));return;}
+   if(req.method==='GET'&&p==='/api/members'){if(!scope.system_admin)throw new AccessError('Somente administrador do sistema',403);send(200,properties.members(scope.property.id));return;}
+   if(req.method==='GET'&&['/api/events','/api/history'].includes(p)){const table=p==='/api/events'?'events':'samples',guid=url.searchParams.get('guid'),guids=guid?[deviceByGuid(guid).guid]:authorized().map(d=>d.guid);const rows=guids.length?db.prepare(`SELECT body FROM ${table} WHERE device IN (${guids.map(()=>'?').join(',')}) ORDER BY id DESC LIMIT 500`).all(...guids):[];send(200,rows.map(r=>JSON.parse(r.body)));return;}
+   if(req.method==='GET'&&p==='/api/configurations'){const d=deviceByGuid(url.searchParams.get('guid'));send(200,db.prepare('SELECT revision,status,published_at,applied_at,error FROM configuration_versions WHERE device=? ORDER BY revision DESC LIMIT 100').all(d.guid));return;}
+   if(req.method==='GET'&&p==='/api/outbox'){const guid=url.searchParams.get('guid');send(200,guid?outbox.list(deviceByGuid(guid).guid):authorized().flatMap(d=>outbox.list(d.guid)).sort((a,b)=>b.created_at-a.created_at).slice(0,100));return;}
    if(req.method!=='POST'){send(404,{error:'Rota inexistente'});return;}
-   const adminOnly=['/api/config','/api/device','/api/simulation','/api/sensor','/api/network','/api/reboot','/api/integration','/api/integration/test','/api/device/credential'];
-   if(adminOnly.includes(p)&&session.role!=='admin'){const d=state.devices[0];if(d)mutate(()=>engine.event(d,'rejected','permission_denied',{actor:session.username,route:p}));send(403,{error:'Somente administrador'});return;}
-   const device=()=>{const d=state.devices.find(d=>d.guid===body.guid);if(!d)throw new ValidationError('Dispositivo não encontrado');return d;};
+   const adminOnly=['/api/config','/api/device','/api/simulation','/api/sensor','/api/network','/api/reboot','/api/integration','/api/integration/test','/api/device/credential','/api/area'];
+   if(adminOnly.includes(p)&&scope.role!=='admin'){const d=authorized()[0];if(d)mutate(()=>engine.event(d,'rejected','permission_denied',{actor:session.username,route:p}));throw new AccessError('Somente administrador da propriedade',403);}
+   if(p==='/api/simulation'&&!scope.system_admin)throw new AccessError('Relógio global: somente administrador do sistema',403);
    let result;
-   if(p==='/api/device')result=mutate(()=>{const d=engine.add(body.config);d.integration=normalizeProfile({...state.integration,enabled:false});db.prepare("INSERT INTO configuration_versions VALUES(?,?,'applied',?,?,?,NULL)").run(d.guid,d.revision,JSON.stringify(d.config),new Date(state.now*1000).toISOString(),new Date(state.now*1000).toISOString());return d;});
-   else if(p==='/api/config')result=mutate(()=>{const d=device(),result=engine.publish(d,body.config),time=new Date(state.now*1000).toISOString();db.prepare("UPDATE configuration_versions SET status='superseded' WHERE device=? AND status='pending'").run(d.guid);db.prepare("INSERT INTO configuration_versions VALUES(?,?,'pending',?,?,NULL,NULL)").run(d.guid,result.desired_revision,JSON.stringify(d.desired_config),time);return result;});
+   if(p==='/api/device')result=mutate(()=>{const config=properties.bind(body.config,scope.property.id),d=engine.add(config,randomUUID(),{property_id:scope.property.id});d.property_id=scope.property.id;d.area_id=config.area_id;d.integration=defaultProfile();db.prepare("INSERT INTO configuration_versions VALUES(?,?,'applied',?,?,?,NULL)").run(d.guid,d.revision,JSON.stringify(d.config),new Date(state.now*1000).toISOString(),new Date(state.now*1000).toISOString());return d;});
+   else if(p==='/api/config')result=mutate(()=>{const d=device(),result=engine.publish(d,properties.bind(body.config,scope.property.id)),time=new Date(state.now*1000).toISOString();db.prepare("UPDATE configuration_versions SET status='superseded' WHERE device=? AND status='pending'").run(d.guid);db.prepare("INSERT INTO configuration_versions VALUES(?,?,'pending',?,?,NULL,NULL)").run(d.guid,result.desired_revision,JSON.stringify(d.desired_config),time);return result;});
    else if(p==='/api/command')result=mutate(()=>engine.command(device(),{...body,actor:session.username}));
    else if(p==='/api/simulation')result=mutate(()=>{if(body.seconds!=null)engine.advance(body.seconds);if(body.paused!=null){if(typeof body.paused!=='boolean')throw new ValidationError('Pausa inválida');state.paused=body.paused;}if(body.speed!=null){if(![1,10,60].includes(body.speed))throw new ValidationError('Velocidade inválida');state.speed=body.speed;}return {ok:true,now:state.now};});
    else if(p==='/api/sensor')result=mutate(()=>{const d=device(),s=d.sensors[body.component_id];if(!s||!d.config.components.some(c=>c.id===body.component_id&&c.kind!=='irrigation_actuator'))throw new ValidationError('Sensor não encontrado');if(!['valid','invalid','stale','missing'].includes(body.quality)||typeof body.value!=='number'||!Number.isFinite(body.value))throw new ValidationError('Leitura inválida');const c=d.config.components.find(c=>c.id===body.component_id);if(c.kind==='soil_moisture'&&(body.value<0||body.value>100))throw new ValidationError('Umidade entre 0 e 100');Object.assign(s,{value:body.value,quality:body.quality,updated_at:state.now});engine.event(d,'sensor_changed','simulation_input',{component_id:body.component_id,actor:session.username});return {ok:true};});
    else if(p==='/api/network')result=mutate(()=>{const d=device();if(typeof body.online!=='boolean')throw new ValidationError('Estado inválido');d.online=body.online;engine.event(d,body.online?'online':'offline','simulation_network');return {ok:true};});
    else if(p==='/api/reboot')result=mutate(()=>{engine.reboot(device());return {ok:true};});
-   else if(p==='/api/integration')result=mutate(()=>{const profile=normalizeProfile(body.integration);if(profile.url.startsWith('http:')&&!allowLocalIntegrations)throw new ValidationError('HTTP local requer ALLOW_LOCAL_INTEGRATIONS=1');const d=body.guid?device():state.devices[0];if(!d)throw new ValidationError('Cadastre um dispositivo');if(body.headers!==undefined)outbox.setHeaders(body.headers,d.guid);d.integration=profile;return {ok:true};});
+   else if(p==='/api/integration')result=mutate(()=>{const profile=normalizeProfile(body.integration);if(profile.url.startsWith('http:')&&!allowLocalIntegrations)throw new ValidationError('HTTP local requer ALLOW_LOCAL_INTEGRATIONS=1');const d=body.guid?device():authorized()[0];if(!d)throw new ValidationError('Cadastre um dispositivo');if(body.headers!==undefined)outbox.setHeaders(body.headers,d.guid);d.integration=profile;return {ok:true};});
    else if(p==='/api/integration/preview'){const d=device(),profile=d.integration||state.integration,message=envelope(d,{sample:true},state.now);message.message_id='preview-message';result={simulated:true,request:{url:profile.url,method:profile.method,body:mappedPayload(profile,d,message)},note:'Prévia apenas. Nenhuma requisição externa foi enviada.'};}
    else if(p==='/api/integration/test')result=mutate(()=>{const d=device(),profile=d.integration||state.integration;if(!profile.url)throw new ValidationError('Configure uma URL');const message=envelope(d,{sample:true},state.now),payload=mappedPayload(profile,d,message);const queued=outbox.enqueue(d.guid,payload,profile);return {message_id:message.message_id,status:queued?'pending':'dropped'};});
    else if(p==='/api/device/credential')result=mutate(()=>{const d=device(),token=randomBytes(32).toString('base64url');db.prepare('INSERT INTO device_credentials VALUES(?,?) ON CONFLICT(device) DO UPDATE SET hash=excluded.hash').run(d.guid,tokenHash(token));engine.event(d,'credential_rotated','previous_token_revoked',{actor:session.username});return {guid:d.guid,token,note:'Exibido uma vez. O token anterior foi revogado.'};});
+   else if(p==='/api/property')result=mutate(()=>properties.saveProperty(session,body));
+   else if(p==='/api/area')result=mutate(()=>properties.saveArea(scope.property.id,body));
+   else if(p==='/api/user')result=mutate(()=>properties.createUser(session,{...body,property_id:scope.property.id}));
+   else if(p==='/api/member')result=mutate(()=>properties.saveMember(session,{...body,property_id:scope.property.id}));
+   else if(p==='/api/property/select'){if(!properties.list(session.username).some(p=>p.id===body.property_id))throw new AccessError();session.property_id=body.property_id;result={ok:true};}
    else {send(404,{error:'Rota inexistente'});return;}
    send(200,result);
-  }catch(e){if(e instanceof ValidationError)send(400,{error:e.message});else{console.error(e);send(500,{error:'Erro interno; nenhuma confirmação de gravação foi emitida'});}}
+  }catch(e){if(e instanceof AccessError)send(e.status,{error:e.message});else if(e instanceof ValidationError)send(400,{error:e.message});else{console.error(e);send(500,{error:'Erro interno; nenhuma confirmação de gravação foi emitida'});}}
  };
  const server=http.createServer(handler);const timer=setInterval(()=>{if(!state.paused)try{mutate(()=>engine.advance(state.speed));}catch(e){state.paused=true;console.error(e);}},1000);timer.unref();
  const sender=setInterval(()=>outbox.flush().catch(e=>console.error('integration_worker_error',e.code||'internal')),500);sender.unref();

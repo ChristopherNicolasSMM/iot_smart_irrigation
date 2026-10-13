@@ -1,12 +1,12 @@
 # IoT Smart Irrigation — Conecta Agro Irrigação
 
-Piloto executável v0.3.0 — 13/10/2026.
+Piloto executável v0.4.0 — 13/10/2026.
 
 Sistema de irrigação configurável para múltiplos ESP32, com portal central, portal local, simulação e futura implementação de firmware. Repositório canônico: https://github.com/ChristopherNicolasSMM/iot_smart_irrigation.
 
 ## Estado atual
 
-Esta entrega contém portal central/local, API local, simulador determinístico, persistência SQLite, integração HTTP(S) real e revisões assíncronas. Ainda não contém firmware ou comunicação com ESP32 real.
+Esta entrega contém portal central/local, API local, simulador determinístico, persistência SQLite, integração HTTP(S) real, revisões assíncronas, propriedades/áreas e horários individuais por dia. Ainda não contém firmware ou comunicação com ESP32 real.
 
 ## Executar
 
@@ -19,7 +19,7 @@ npm start
 Abrir http://127.0.0.1:8080 (central) ou http://127.0.0.1:8080/local (local simulado).
 Login inicial: admin / admin-demo-2026 ou operador / operador-demo-2026.
 
-Leia [execução e demonstração](docs/EXECUCAO.md) e [validação/limites](docs/VALIDACAO_V03.md). O piloto não fecha todo o gate da fase 1.
+Leia [execução e demonstração](docs/EXECUCAO.md) e [validação/limites](docs/VALIDACAO_V04.md). O piloto não fecha todo o gate da fase 1.
 Sequência solicitada: **documentação → portal e simulação → avaliação completa do firmware → implementação e entrega para compilação e validação física**.
 
 ## Documentos
@@ -60,4 +60,4 @@ O GitHub conectado já confirmou acesso de leitura e escrita ao repositório. In
 
 ## Próxima entrega
 
-Validar novos fluxos, organizar propriedades/áreas, completar políticas temporais e protocolo de máquina; depois avaliar hardware e firmware. Ver docs/VALIDACAO_V03.md para cobertura e pendências.
+Validar novos fluxos, completar políticas temporais e protocolo de máquina; depois avaliar hardware e firmware. Ver docs/VALIDACAO_V04.md para cobertura e pendências.

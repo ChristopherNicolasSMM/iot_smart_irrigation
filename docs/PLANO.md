@@ -86,3 +86,7 @@ Piloto executável inicial entregue em 13/10/2026. Ver EXECUCAO.md e VALIDACAO_V
 ## Atualização v0.3.0
 
 Envio/recepção HTTP, ACK, fila persistente e revisão desejada/aplicada entregues em 13/10/2026. Validação da execução v0.2 confirmada pelo usuário. Ver VALIDACAO_V03.md para testes, migração e limites. Próximos blocos: propriedades/áreas e acesso isolado, política temporal, protocolo completo de máquina. Firmware não iniciado.
+
+## Atualização v0.4.0
+
+Solicitação de checkboxes/dias com horários próprios entregue junto de propriedades, áreas e isolamento de API. Ver VALIDACAO_V04.md. AT-30 possui implementação/testes no laboratório. Próximos blocos: políticas temporais e protocolo completo de máquina; firmware permanece posterior.

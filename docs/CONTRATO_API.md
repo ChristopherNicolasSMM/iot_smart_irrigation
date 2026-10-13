@@ -76,3 +76,9 @@ Transformações complexas ficam no servidor.
 ## APIs implementadas na v0.3
 
 POST /api/config publica desejada; GET /api/configurations?guid=... consulta estados de revisão. POST /api/integration salva perfil por GUID; headers são opcionais e não retornam. POST /api/integration/preview não envia; POST /api/integration/test enfileira envio real. GET /api/outbox?guid=... lista diagnóstico sem segredos. POST /api/device/credential gera/rotaciona Bearer de máquina, mostrado uma única vez. POST /iot/v1/telemetry exige Bearer e confirma após commit. Detalhes em EXECUCAO.md e VALIDACAO_V03.md.
+
+## Agendas semanais v0.4
+
+calendar=weekly aceita day_times: lista de {weekday, times}, onde weekday segue ISO 1–7 e cada time tem id, start_time, termination e duration_s OU end_time/crosses_midnight. Dias ausentes estão desmarcados. Máximo 7 dias distintos/8 horários por dia/32 agendas por dispositivo. Exemplo completo em examples/weekly-per-day.json. Formato legado weekdays + horário comum permanece compatível.
+
+GET /api/properties lista vínculos; POST /api/property cria/edita; POST /api/property/select seleciona escopo da sessão. POST /api/area cria/edita na propriedade corrente; POST /api/user cria conta com vínculo e POST /api/member altera/concede perfil. GET /api/members exige administrador do sistema. Estado, eventos, histórico, fila, revisões e ações verificam escopo; GUID fora da propriedade retorna 404. Corpo de criação de dispositivo não determina propriedade: escopo é derivado da sessão.
