@@ -82,3 +82,7 @@ Referenciar este repositório e docs/PLANO.md + docs/REQUISITOS.md; pedir leitur
 ## Atualização v0.2.0
 
 Piloto executável inicial entregue em 13/10/2026. Ver EXECUCAO.md e VALIDACAO_V02.md. Gate integral da fase 1 permanece aberto; nenhuma avaliação/entrega de firmware foi antecipada.
+
+## Atualização v0.3.0
+
+Envio/recepção HTTP, ACK, fila persistente e revisão desejada/aplicada entregues em 13/10/2026. Validação da execução v0.2 confirmada pelo usuário. Ver VALIDACAO_V03.md para testes, migração e limites. Próximos blocos: propriedades/áreas e acesso isolado, política temporal, protocolo completo de máquina. Firmware não iniciado.

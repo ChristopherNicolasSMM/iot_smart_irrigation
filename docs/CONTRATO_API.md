@@ -1,6 +1,6 @@
 # Contrato preliminar de API — v0.1
 
-Contrato proposto, ainda sem servidor implementado. Caminhos e payloads serão estabilizados com schemas/OpenAPI na fase do portal. Exemplos JSON não substituem validação formal.
+Contrato completo ainda proposto. A v0.3 implementa POST /iot/v1/telemetry e APIs de piloto /api/*; os demais caminhos /api/v1 e /iot/v1 da tabela permanecem futuros. Caminhos e payloads serão estabilizados com schemas/OpenAPI na fase do portal. Exemplos JSON não substituem validação formal.
 
 ## APIs humanas e dispositivo
 
@@ -72,3 +72,7 @@ Resposta configurável: códigos aceitos e caminho simples do ACK/message_id; se
 Tela mostra preview, último envio, tempo, status e confirmação; headers secretos são mascarados.
 Para destinos externos, prever idempotência contratada. Sem suporte remoto, documentar possibilidade de duplicatas.
 Transformações complexas ficam no servidor.
+
+## APIs implementadas na v0.3
+
+POST /api/config publica desejada; GET /api/configurations?guid=... consulta estados de revisão. POST /api/integration salva perfil por GUID; headers são opcionais e não retornam. POST /api/integration/preview não envia; POST /api/integration/test enfileira envio real. GET /api/outbox?guid=... lista diagnóstico sem segredos. POST /api/device/credential gera/rotaciona Bearer de máquina, mostrado uma única vez. POST /iot/v1/telemetry exige Bearer e confirma após commit. Detalhes em EXECUCAO.md e VALIDACAO_V03.md.
