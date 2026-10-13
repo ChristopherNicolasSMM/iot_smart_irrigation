@@ -151,3 +151,7 @@ Seleção semanal com checkboxes nomeados de segunda a domingo. Cada dia marcado
 ## Conjuntos por solenoide — adendo v0.5
 
 Agrupar solenoide, sensor de umidade e temperatura como conjunto nomeado/identificado, com área, modo e agenda próprios. Uma solenoide por conjunto, até quatro conjuntos; sensores opcionais preservam os limites de 0–4 por tipo. Campos zones/zone_id permanecem compatíveis; sensor_id é umidade e temperature_sensor_id é temperatura. Temperatura não altera acionamento nesta fase. Status e pendências em BACKLOG.md.
+
+## Agenda e acesso — adendo v0.6
+
+Avisos antecipados de sobreposição por conjunto e disputa de simultaneidade são informativos e não substituem proteções durante execução. Escopo temporal e limites em VALIDACAO_V06.md. Senha própria exige senha atual; administrador do sistema gerencia senhas de outros usuários, estado global da conta e vínculos por propriedade. Revogação encerra sessões abertas e permanece após reinício. Não implica parada automática de dispositivo.

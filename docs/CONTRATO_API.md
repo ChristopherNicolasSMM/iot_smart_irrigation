@@ -88,3 +88,21 @@ GET /api/properties lista vínculos; POST /api/property cria/edita; POST /api/pr
 Conjunto continua em zones, com actuator_id, sensor_id opcional, temperature_sensor_id opcional e area_id; agendas continuam com zone_id. Eventos incluem group_id/group_name. GET /iot/v1/configuration retorna revisão/hash/configuração; POST /iot/v1/configuration/ack exige revisão/hash/status e idle=true para aplicação. GET /iot/v1/commands retorna comandos pendentes ou reconcile_only=true; estes últimos nunca autorizam novo acionamento. POST /iot/v1/commands/:id/events recebe transições e executed_at em confirmação tardia iniciado. POST /iot/v1/runtime informa active_groups e runs opcionais. Bearer identifica dispositivo. Expiração de comandos HTTP usa UTC real; relógio acelerado é exclusivo do simulador interno.
 
 POST /api/device/transport escolhe internal/http; GET /api/commands?guid=... consulta estados. POST /api/clock ajusta relógio interno, /api/clock-valid altera qualidade e /api/power altera energia simulada. Detalhes/limites em VALIDACAO_V05.md.
+
+## APIs implementadas na v0.6
+
+Todas usam sessão humana e proteção de origem existente.
+
+| Método/rota | Corpo | Permissão e resultado |
+|---|---|---|
+| POST /api/config/check | {guid,config} | Admin da propriedade; valida configuração e GUID autorizado; retorna {warnings,truncated,scope,note}, sem publicar |
+| POST /api/config | {guid,config} | Publicação existente acrescenta analysis com a mesma estrutura; avisos não bloqueiam publicação |
+| POST /api/account/password | {current_password,password} | Própria conta; senha 10–200 caracteres; revoga sessões e limpa cookie atual |
+| POST /api/user/password | {username,password} | Administrador do sistema; redefinir senha de outro usuário e revogar sessões |
+| POST /api/user/enabled | {username,enabled:boolean} | Administrador do sistema; estado global e revogação de sessões |
+| POST /api/member/revoke | {username} | Administrador do sistema; remove vínculo da propriedade selecionada e revoga sessões |
+| GET /api/members | — | Resposta existente acrescenta enabled (0/1); sem dados de autenticação |
+
+Avisos: code (same_solenoid_overlap, simultaneous_limit, dynamic_capacity), message, groups e, quando aplicável, schedules/example_date/start_time. scope contém timezone, weekly_from, weekly_through e specific_dates. Máximo 50 avisos; truncated sinaliza limite. A análise usa o relógio do laboratório.
+
+401: sessão ausente/expirada/revogada ou conta desativada. 403: perfil insuficiente ou usuário sem vínculo. 404: GUID/vínculo/usuário não disponível na operação. 400: senha/estado inválido ou tentativa de autobloqueio administrativo. Auditoria persistida em account_audit; consulta/exportação pela interface é evolução futura. Migração e roteiro em VALIDACAO_V06.md.

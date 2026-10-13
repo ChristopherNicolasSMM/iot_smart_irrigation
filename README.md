@@ -1,12 +1,12 @@
 # IoT Smart Irrigation — Conecta Agro Irrigação
 
-Piloto executável v0.5.0 — 13/10/2026.
+Piloto executável v0.6.0 — 13/10/2026.
 
 Sistema de irrigação configurável para múltiplos ESP32, com portal central, portal local, simulação e futura implementação de firmware. Repositório canônico: https://github.com/ChristopherNicolasSMM/iot_smart_irrigation.
 
 ## Estado atual
 
-Esta entrega contém portal central/local, API local, simulador determinístico, persistência SQLite, integração HTTP(S) real, revisões assíncronas, propriedades/áreas, conjuntos por solenoide, horários por dia e cliente HTTP independente. Ainda não contém firmware ou comunicação com ESP32 real.
+Esta entrega contém portal central/local, API local, simulador determinístico, persistência SQLite, integração HTTP(S) real, revisões assíncronas, propriedades/áreas, conjuntos por solenoide, horários por dia cliente HTTP independente, avisos de sobreposição e gestão de senhas/contas/vínculos. Ainda não contém firmware ou comunicação com ESP32 real.
 
 ## Executar
 
@@ -19,7 +19,7 @@ npm start
 Abrir http://127.0.0.1:8080 (central) ou http://127.0.0.1:8080/local (local simulado).
 Login inicial: admin / admin-demo-2026 ou operador / operador-demo-2026.
 
-Leia [execução e demonstração](docs/EXECUCAO.md) e [validação/limites](docs/VALIDACAO_V05.md). O piloto não fecha todo o gate da fase 1.
+Leia [execução e demonstração](docs/EXECUCAO.md) e [validação/limites](docs/VALIDACAO_V06.md). O piloto não fecha todo o gate da fase 1.
 Sequência solicitada: **documentação → portal e simulação → avaliação completa do firmware → implementação e entrega para compilação e validação física**.
 
 ## Documentos
@@ -62,4 +62,4 @@ O GitHub conectado já confirmou acesso de leitura e escrita ao repositório. In
 
 ## Próxima entrega
 
-Validar v0.5, completar itens de acesso, diagnóstico, retenção e estabilidade do backlog; depois avaliar hardware e firmware. Ver docs/VALIDACAO_V05.md para cobertura e pendências.
+Validar controles da v0.6; seguir com diagnóstico/próxima execução e histórico, conforme backlog; depois avaliar hardware e firmware. Ver docs/VALIDACAO_V06.md para cobertura e pendências.

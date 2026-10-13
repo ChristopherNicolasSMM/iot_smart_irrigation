@@ -224,3 +224,7 @@ DEVICE_URL="http://127.0.0.1:8080" DEVICE_GUID="GUID_DO_DISPOSITIVO" DEVICE_TOKE
 CLIENT_DB_PATH altera banco do cliente. Padrão data/client-GUID.sqlite, separado do banco do servidor. Não apagar banco para contornar erro de protocolo; ele preserva deduplicação e fila. Token e GUID devem corresponder. O cliente simula sensores/saídas em Node, sem GPIO físico.
 
 Desconexão de cliente HTTP é detectada por ausência de heartbeat em 90 s. Estado anterior de saída não é confirmação atual. Comando recebido sem ACK posterior pode ficar não confirmado e ser reconciliado; isso não autoriza repetição do acionamento.
+
+## Atualização para v0.6
+
+Com servidor parado, copiar o banco para backup, executar git pull --ff-only e npm start. Migração automática preserva dados. Não apagar data/. Ver roteiro em VALIDACAO_V06.md. Minha senha exige senha atual e novo login; Propriedades e áreas permite gestão de contas e revogação de vínculo pelo administrador do sistema.

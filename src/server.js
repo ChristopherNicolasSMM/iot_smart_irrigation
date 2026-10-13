@@ -4,11 +4,12 @@ import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypt
 import { mkdirSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Engine, ValidationError, demoConfig } from './engine.js';
+import { Engine, ValidationError, demoConfig, validateConfig } from './engine.js';
 import { Outbox, normalizeProfile, envelope, mappedPayload, defaultProfile } from './integration.js';
 import { initIngestion, tokenHash, ingest } from './ingestion.js';
 import { DeviceProtocol } from './protocol.js';
 import { Properties, AccessError } from './properties.js';
+import { scheduleWarnings } from './schedule-warnings.js';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.ADMIN_PASSWORD||'admin-demo-2026',operatorPassword=process.env.OPERATOR_PASSWORD||'operador-demo-2026',allowLocalIntegrations=process.env.ALLOW_LOCAL_INTEGRATIONS==='1',transport}={}){
  if(dbPath!==':memory:')mkdirSync(dirname(resolve(dbPath)),{recursive:true});const db=new DatabaseSync(dbPath);
@@ -68,11 +69,12 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
    }
    if(req.method==='POST'&&p==='/api/login'){
     const ip=req.socket.remoteAddress,entry=attempts.get(ip)||{count:0,until:Date.now()+60000};if(entry.until<Date.now()){entry.count=0;entry.until=Date.now()+60000;}attempts.set(ip,entry);if(entry.count>=10){send(429,{error:'Muitas tentativas; aguarde um minuto'});return;}
-    const user=db.prepare('SELECT * FROM users WHERE username=?').get(typeof body.username==='string'?body.username:'');const salt=user?.salt||'invalid';const h=scryptSync(typeof body.password==='string'?body.password:'',salt,32);if(!user||!timingSafeEqual(h,Buffer.from(user.hash,'hex'))){entry.count++;send(401,{error:'Usuário ou senha inválidos'});return;}
-    const token=randomBytes(32).toString('hex');sessions.set(token,{username:user.username,role:user.role,until:Date.now()+8*3600000});res.setHeader('Set-Cookie',`session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800`);send(200,{username:user.username,role:user.role});return;
+    const user=db.prepare('SELECT * FROM users WHERE username=?').get(typeof body.username==='string'?body.username:'');const salt=user?.salt||'invalid';const h=scryptSync(typeof body.password==='string'?body.password:'',salt,32);if(!user||!user.enabled||!timingSafeEqual(h,Buffer.from(user.hash,'hex'))){entry.count++;send(401,{error:'Usuário ou senha inválidos'});return;}
+    const token=randomBytes(32).toString('hex');sessions.set(token,{username:user.username,role:user.role,auth_version:user.auth_version,until:Date.now()+8*3600000});res.setHeader('Set-Cookie',`session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800`);send(200,{username:user.username,role:user.role});return;
    }
-   const token=req.headers.cookie?.split(';').map(s=>s.trim()).find(s=>s.startsWith('session='))?.slice(8);const session=sessions.get(token);if(!session||session.until<Date.now()){send(401,{error:'Faça login'});return;}
+   const token=req.headers.cookie?.split(';').map(s=>s.trim()).find(s=>s.startsWith('session='))?.slice(8);const session=sessions.get(token);const account=session&&db.prepare('SELECT enabled,auth_version FROM users WHERE username=?').get(session.username);if(!session||session.until<Date.now()||!account?.enabled||account.auth_version!==session.auth_version){sessions.delete(token);send(401,{error:'Faça login'});return;}
    if(req.method==='POST'&&p==='/api/logout'){sessions.delete(token);res.setHeader('Set-Cookie','session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');send(200,{ok:true});return;}
+   if(req.method==='POST'&&p==='/api/account/password'){const result=mutate(()=>properties.account(session,body,'password_self'));sessions.delete(token);res.setHeader('Set-Cookie','session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');send(200,result);return;}
    const scope=properties.scope(session),authorized=()=>state.devices.filter(d=>d.property_id===scope.property.id);
    const deviceByGuid=guid=>{const d=authorized().find(d=>d.guid===guid);if(!d)throw new AccessError();return d;};
    const device=()=>deviceByGuid(body.guid);
@@ -84,13 +86,14 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
    if(req.method==='GET'&&p==='/api/commands'){send(200,protocol.statuses(deviceByGuid(url.searchParams.get('guid'))));return;}
    if(req.method==='GET'&&p==='/api/outbox'){const guid=url.searchParams.get('guid');send(200,guid?outbox.list(deviceByGuid(guid).guid):authorized().flatMap(d=>outbox.list(d.guid)).sort((a,b)=>b.created_at-a.created_at).slice(0,100));return;}
    if(req.method!=='POST'){send(404,{error:'Rota inexistente'});return;}
-   const adminOnly=['/api/config','/api/device','/api/simulation','/api/sensor','/api/network','/api/reboot','/api/integration','/api/integration/test','/api/device/credential','/api/area','/api/clock','/api/clock-valid','/api/power','/api/device/transport'];
+   const adminOnly=['/api/config','/api/config/check','/api/device','/api/simulation','/api/sensor','/api/network','/api/reboot','/api/integration','/api/integration/test','/api/device/credential','/api/area','/api/clock','/api/clock-valid','/api/power','/api/device/transport'];
    if(adminOnly.includes(p)&&scope.role!=='admin'){const d=authorized()[0];if(d)mutate(()=>engine.event(d,'rejected','permission_denied',{actor:session.username,route:p}));throw new AccessError('Somente administrador da propriedade',403);}
    if(['/api/simulation','/api/clock'].includes(p)&&!scope.system_admin)throw new AccessError('Relógio global: somente administrador do sistema',403);
    if(['/api/sensor','/api/network','/api/reboot','/api/clock-valid','/api/power'].includes(p)&&device().transport==='http')throw new ValidationError('Ação disponível somente no simulador interno');
    let result;
    if(p==='/api/device')result=mutate(()=>{const config=properties.bind(body.config,scope.property.id),d=engine.add(config,randomUUID(),{property_id:scope.property.id});d.property_id=scope.property.id;d.area_id=config.area_id;d.integration=defaultProfile();db.prepare("INSERT INTO configuration_versions VALUES(?,?,'applied',?,?,?,NULL)").run(d.guid,d.revision,JSON.stringify(d.config),new Date(state.now*1000).toISOString(),new Date(state.now*1000).toISOString());return d;});
-   else if(p==='/api/config')result=mutate(()=>{const d=device(),result=engine.publish(d,properties.bind(body.config,scope.property.id)),time=new Date(state.now*1000).toISOString();db.prepare("UPDATE configuration_versions SET status='superseded' WHERE device=? AND status='pending'").run(d.guid);db.prepare("INSERT INTO configuration_versions VALUES(?,?,'pending',?,?,NULL,NULL)").run(d.guid,result.desired_revision,JSON.stringify(d.desired_config),time);return result;});
+   else if(p==='/api/config')result=mutate(()=>{const d=device(),result=engine.publish(d,properties.bind(body.config,scope.property.id)),time=new Date(state.now*1000).toISOString();db.prepare("UPDATE configuration_versions SET status='superseded' WHERE device=? AND status='pending'").run(d.guid);db.prepare("INSERT INTO configuration_versions VALUES(?,?,'pending',?,?,NULL,NULL)").run(d.guid,result.desired_revision,JSON.stringify(d.desired_config),time);return {...result,analysis:scheduleWarnings(d.desired_config,state.now)};});
+   else if(p==='/api/config/check'){device();validateConfig(body.config);result=scheduleWarnings(body.config,state.now);}
    else if(p==='/api/command')result=mutate(()=>{const d=device();return d.transport==='http'?protocol.queue(d,body,session.username):engine.command(d,{...body,actor:session.username});});
    else if(p==='/api/simulation')result=mutate(()=>{if(body.seconds!=null)engine.advance(body.seconds);if(body.paused!=null){if(typeof body.paused!=='boolean')throw new ValidationError('Pausa inválida');state.paused=body.paused;}if(body.speed!=null){if(![1,10,60].includes(body.speed))throw new ValidationError('Velocidade inválida');state.speed=body.speed;}return {ok:true,now:state.now};});
    else if(p==='/api/sensor')result=mutate(()=>{const d=device(),s=d.sensors[body.component_id];if(!s||!d.config.components.some(c=>c.id===body.component_id&&c.kind!=='irrigation_actuator'))throw new ValidationError('Sensor não encontrado');if(!['valid','invalid','stale','missing'].includes(body.quality)||typeof body.value!=='number'||!Number.isFinite(body.value))throw new ValidationError('Leitura inválida');const c=d.config.components.find(c=>c.id===body.component_id);if(c.kind==='soil_moisture'&&(body.value<0||body.value>100))throw new ValidationError('Umidade entre 0 e 100');Object.assign(s,{value:body.value,quality:body.quality,updated_at:state.now,updated_uptime:state.uptime||0});engine.event(d,'sensor_changed','simulation_input',{component_id:body.component_id,actor:session.username});return {ok:true};});
@@ -107,6 +110,9 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
    else if(p==='/api/property')result=mutate(()=>properties.saveProperty(session,body));
    else if(p==='/api/area')result=mutate(()=>properties.saveArea(scope.property.id,body));
    else if(p==='/api/user')result=mutate(()=>properties.createUser(session,{...body,property_id:scope.property.id}));
+   else if(p==='/api/user/password')result=mutate(()=>properties.account(session,body,'password_reset'));
+   else if(p==='/api/user/enabled')result=mutate(()=>properties.account(session,body,'enabled'));
+   else if(p==='/api/member/revoke')result=mutate(()=>properties.revokeMember(session,{...body,property_id:scope.property.id}));
    else if(p==='/api/member')result=mutate(()=>properties.saveMember(session,{...body,property_id:scope.property.id}));
    else if(p==='/api/property/select'){if(!properties.list(session.username).some(p=>p.id===body.property_id))throw new AccessError();session.property_id=body.property_id;result={ok:true};}
    else {send(404,{error:'Rota inexistente'});return;}
