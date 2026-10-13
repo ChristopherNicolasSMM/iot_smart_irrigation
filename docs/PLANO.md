@@ -78,3 +78,7 @@ Pacote de firmware terá versão, toolchain fixada, comando de compilação, bin
 ## Uso em novas conversas
 
 Referenciar este repositório e docs/PLANO.md + docs/REQUISITOS.md; pedir leitura do estado atual antes de implementar. Registro canônico de decisões e progresso fica nos arquivos versionados. URL no chat não garante contexto automático de futuras conversas.
+
+## Atualização v0.2.0
+
+Piloto executável inicial entregue em 13/10/2026. Ver EXECUCAO.md e VALIDACAO_V02.md. Gate integral da fase 1 permanece aberto; nenhuma avaliação/entrega de firmware foi antecipada.

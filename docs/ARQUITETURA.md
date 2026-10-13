@@ -89,3 +89,7 @@ Alternativa de desenvolvimento de interface, não requisito operacional.
 Pode gerar um frontend separado consumindo os mesmos contratos. Não alterar backend/contrato/identidade de dispositivos por conveniência de geração.
 Primeiro decidir stack e API; depois preparar prompts por tela com estados, permissões e aceite.
 Código gerado exige revisão e testes; regras de irrigação devem ser determinísticas.
+
+## Piloto v0.2.0
+
+Implementação inicial em src/ e public/, usando Node.js nativo/SQLite e interface HTML/CSS/JS. A estrutura futura acima continua proposta. Ver VALIDACAO_V02.md para decisão e limites; não confundir API local com protocolo de máquina futuro.

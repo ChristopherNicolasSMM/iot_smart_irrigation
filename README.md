@@ -1,13 +1,25 @@
 # IoT Smart Irrigation — Conecta Agro Irrigação
 
-Documentação inicial v0.1 — 13/10/2026.
+Piloto executável v0.2.0 — 13/10/2026.
 
 Sistema de irrigação configurável para múltiplos ESP32, com portal central, portal local, simulação e futura implementação de firmware. Repositório canônico: https://github.com/ChristopherNicolasSMM/iot_smart_irrigation.
 
 ## Estado atual
 
-Esta entrega contém requisitos, arquitetura proposta, contratos exemplificativos, critérios de aceitação e planejamento. Não contém portal executável, simulador executável ou firmware. Nenhum teste de hardware ou compilação foi realizado nesta etapa.
+Esta entrega contém portal central/local, API local, simulador determinístico e persistência SQLite. Ainda não contém firmware ou comunicação com ESP32 real.
 
+## Executar
+
+Requer Node.js 24 ou superior.
+
+```bash
+npm start
+```
+
+Abrir http://127.0.0.1:8080 (central) ou http://127.0.0.1:8080/local (local simulado).
+Login inicial: admin / admin-demo-2026 ou operador / operador-demo-2026.
+
+Leia [execução e demonstração](docs/EXECUCAO.md) e [validação/limites](docs/VALIDACAO_V02.md). O piloto não fecha todo o gate da fase 1.
 Sequência solicitada: **documentação → portal e simulação → avaliação completa do firmware → implementação e entrega para compilação e validação física**.
 
 ## Documentos
@@ -48,4 +60,4 @@ O GitHub conectado já confirmou acesso de leitura e escrita ao repositório. In
 
 ## Próxima entrega
 
-Portal e simulador determinístico, iniciando por dispositivos/áreas, componentes, agendas, modos de irrigação, teste de acionamento e histórico. Hardware real permanece fora dessa etapa.
+Validar interface e evoluir ingestão/integração real, propriedades e revisão assíncrona; depois avaliar hardware e firmware. Ver docs/VALIDACAO_V02.md para cobertura e pendências.
