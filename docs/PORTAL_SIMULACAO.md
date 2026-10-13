@@ -8,7 +8,7 @@
 | Visão geral | Áreas, dispositivos online/offline, leituras recentes e execuções |
 | Dispositivos | GUID, nome, propriedade/área, função, real/simulado e revisão aplicada |
 | Detalhe | Estado desejado/observado, última comunicação, sensores e saídas |
-| Componentes | 0–4 temperaturas, 0–4 válvulas, umidade e vínculos, nomes e IDs |
+| Componentes | 0–4 temperaturas, 0–4 umidades, 0–4 válvulas e vínculos, nomes e IDs |
 | Setores | Válvula, sensor controlador, modo, limites, alvo e calibração |
 | Agendas | Data ou semana, múltiplos horários, término por hora/duração e fuso |
 | Acionamento | Manual/teste com duração, feedback por etapa e parada |

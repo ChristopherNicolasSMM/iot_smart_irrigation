@@ -27,7 +27,7 @@ Sequência solicitada: **documentação → portal e simulação → avaliação
 - Agendamento por data específica ou dias da semana, com hora final ou duração.
 - Umidade desejada e critérios de calibração.
 - De zero a quatro sensores de temperatura e zero a quatro solenoides por ESP32.
-- Quantidade máxima de sensores de umidade ainda pendente.
+- De zero a quatro sensores de umidade por ESP32, associados aos setores.
 - GUID persistente por dispositivo, nomes e identificadores por componente.
 - Associação do dispositivo e de seus setores a uma propriedade/área.
 - Histórico de umidade a cada 15 minutos, eventos imediatos de operações e falhas.

@@ -16,7 +16,8 @@
   "limits": {
     "temperature_sensors": 4,
     "irrigation_actuators": 4,
-    "max_simultaneous_actuators": 1
+    "max_simultaneous_actuators": 1,
+    "soil_moisture_sensors": 4
   },
   "components": [
     {

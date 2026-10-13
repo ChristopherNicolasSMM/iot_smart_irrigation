@@ -4,8 +4,8 @@ Cada cenário automatizado registra configuração, seed, tempo inicial, ações
 
 | ID | Cenário | Resultado esperado |
 |---|---|---|
-| AT-01 | Cadastrar 0 temperaturas e 0 válvulas | Salvar; mostrar vazio válido |
-| AT-02 | Cadastrar 4 temperaturas/4 válvulas e tentar quinta | Quatro aceitos; quinta rejeitada por API e UI |
+| AT-01 | Cadastrar 0 temperaturas, 0 umidades e 0 válvulas | Salvar; mostrar vazio válido |
+| AT-02 | Cadastrar 4 temperaturas, 4 umidades e 4 válvulas; tentar quinto componente de cada categoria | Até quatro por categoria aceitos; quinto rejeitado por API e UI |
 | AT-03 | Repetir component_id no mesmo GUID | Rejeitar; em outro GUID permitido |
 | AT-04 | Renomear/mudar área e reconectar | GUID preservado e histórico mantém contexto |
 | AT-05 | Estático sem umidade | Inicia/encerra na agenda |

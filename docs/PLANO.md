@@ -46,11 +46,14 @@ Reserva ~20%: 226–355 h, aproximadamente 6–9 semanas a 40 h/semana. Constru�
 
 Firmware/hardware: estimativa definitiva somente após fase 2. Referência preliminar de 140–240 h para avaliação, firmware de uma placa, drivers definidos, integração e ajustes de bancada, sem PCB própria. OTA/MQTT/RS485 e validação prolongada de campo alteram esforço.
 
+## Limite confirmado nesta revisão
+
+Cada ESP32 permite 0–4 sensores de umidade, 0–4 sensores de temperatura e 0–4 solenoides. O limite de umidade foi confirmado pelo usuário em 13/10/2026 e deixa de ser uma pendência.
+
 ## Decisões pendentes
 
 | Decisão | Proposta inicial | Momento limite |
 |---|---|---|
-| Máximo de sensores de umidade | Parametrizar no simulador; não presumir limite confirmado | Antes dos schemas definitivos |
 | Segundo usuário | Operador | Antes da autenticação |
 | Stack do portal | Nuxt/Vue + Fastify/TypeScript + Supabase | Início da fase 1 |
 | Novo frontend por AI Studio | Opcional, mesmo contrato | Antes de refazer telas |

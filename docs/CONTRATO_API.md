@@ -55,7 +55,7 @@ Entrega fora de ordem mantém timestamps originais e received_at; estado atual n
 
 Ver examples/device-config.json:
 - schema_version e revision.
-- limites de componentes.
+- limites por dispositivo: 0–4 sensores de umidade, 0–4 sensores de temperatura e 0–4 solenoides.
 - setor com mode, moisture_control e limites.
 - agenda calendar (weekly/date), termination (duration/end_time) e crosses_midnight.
 - dinâmica não precisa agenda; híbrida usa janela.

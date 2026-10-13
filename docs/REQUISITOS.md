@@ -11,7 +11,7 @@ Data: 2026-10-13. Origem: requisitos desta conversa. “Confirmado” representa
 | RF-03 | Cadastrar 0–4 sensores de temperatura por dispositivo | Confirmado |
 | RF-04 | Cadastrar 0–4 solenoides por dispositivo | Confirmado |
 | RF-05 | Nome e identificador estável por sensor e atuador | Confirmado |
-| RF-06 | Cadastrar sensores de umidade e associá-los aos setores | Confirmado; quantidade máxima pendente |
+| RF-06 | Cadastrar 0–4 sensores de umidade por dispositivo e associá-los aos setores | Confirmado |
 | RF-07 | Acionamento independente de umidade, automático ou manual | Confirmado |
 | RF-08 | Modos dinâmico, estático e híbrido | Confirmado |
 | RF-09 | Datas específicas ou dias da semana, horários e término por hora/duração | Confirmado |
