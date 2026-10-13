@@ -1,0 +1,110 @@
+{
+  "name": "ESP32 · Horta",
+  "area": "Horta principal",
+  "timezone": "America/Sao_Paulo",
+  "max_simultaneous": 1,
+  "components": [
+    {
+      "id": "soil_1",
+      "name": "Umidade canteiro",
+      "kind": "soil_moisture",
+      "enabled": true
+    },
+    {
+      "id": "temp_1",
+      "name": "Temperatura solo",
+      "kind": "soil_temperature",
+      "enabled": true
+    },
+    {
+      "id": "valve_1",
+      "name": "Solenoide canteiro",
+      "kind": "irrigation_actuator",
+      "enabled": true
+    },
+    {
+      "id": "soil_2",
+      "name": "Umidade B",
+      "kind": "soil_moisture",
+      "enabled": true
+    },
+    {
+      "id": "temp_2",
+      "name": "Temperatura B",
+      "kind": "soil_temperature",
+      "enabled": true
+    },
+    {
+      "id": "valve_2",
+      "name": "Solenoide B",
+      "kind": "irrigation_actuator",
+      "enabled": true
+    }
+  ],
+  "zones": [
+    {
+      "id": "zone_1",
+      "name": "Conjunto A",
+      "actuator_id": "valve_1",
+      "sensor_id": "soil_1",
+      "temperature_sensor_id": "temp_1",
+      "mode": "hybrid",
+      "start_below": 30,
+      "target": 45,
+      "max_run_s": 600,
+      "min_pause_s": 1800
+    },
+    {
+      "id": "zone_2",
+      "name": "Conjunto B",
+      "actuator_id": "valve_2",
+      "sensor_id": "soil_2",
+      "temperature_sensor_id": "temp_2",
+      "mode": "static",
+      "start_below": 30,
+      "target": 50,
+      "max_run_s": 600,
+      "min_pause_s": 1800
+    }
+  ],
+  "schedules": [
+    {
+      "id": "morning",
+      "zone_id": "zone_1",
+      "enabled": true,
+      "calendar": "weekly",
+      "weekdays": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "start_time": "06:00",
+      "termination": "duration",
+      "duration_s": 1800,
+      "crosses_midnight": false
+    },
+    {
+      "id": "agenda_b",
+      "zone_id": "zone_2",
+      "enabled": true,
+      "calendar": "weekly",
+      "day_times": [
+        {
+          "weekday": 2,
+          "times": [
+            {
+              "id": "morning",
+              "start_time": "07:00",
+              "termination": "duration",
+              "duration_s": 600
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

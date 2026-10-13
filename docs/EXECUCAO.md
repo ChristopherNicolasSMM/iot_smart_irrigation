@@ -178,3 +178,49 @@ A conta admin original administra o sistema. Na propriedade selecionada:
 Teste recomendado: criar propriedade B e usuário operador B. Entrar em janela separada com esse usuário; confirmar que dispositivos da propriedade principal não aparecem e seus GUIDs não podem ser consultados/acionados.
 
 Gerenciamento de usuários requer conta admin do sistema. As duas contas iniciais continuam válidas na propriedade principal.
+
+## Atualização v0.5.0 — conjuntos e cliente independente
+
+Parar servidor, fazer backup de data, git pull --ff-only, npm test e npm start. A migração é automática. Consulte BACKLOG.md na raiz e VALIDACAO_V05.md.
+
+### Conjunto por solenoide
+
+No editor Conjuntos de irrigação e modos, cadastrar nome/ID, solenoide, umidade opcional, temperatura opcional e área. Escolher modo e limites. Na agenda, selecionar o conjunto/solenoide correspondente. Outra solenoide usa outro conjunto e pode ter dias/horários diferentes.
+
+Conjuntos antigos mantêm IDs. Selecionar temperatura explicitamente quando antes não havia associação. Para remover um sensor, escolher Sem sensor nos conjuntos associados antes de publicar (dinâmico/híbrido precisam de umidade).
+
+### Tempo no simulador interno
+
+Como admin do sistema, controles do laboratório permitem ajuste de calendário UTC, confiabilidade do relógio e energia do dispositivo. Ajuste até sete dias. Duração é monotônica: adiantar/atrasar hora não estende manual/teste. Automação em curso é interrompida no ajuste; agendas puladas são omitidas com motivo.
+
+Para energia: desligar antes do horário, avançar tempo e ligar. Agenda perdida deve constar no histórico sem acionamento tardio. Dias com horários inexistentes/repetidos seguem a política do relatório; transições raras continuam no backlog.
+
+### Cliente HTTP separado
+
+1. Deixar todas as saídas paradas. No editor, escolher Cliente HTTP independente e clicar Trocar controlador.
+2. Gerar/rotacionar token individual em Integrações. Copiar GUID e token.
+3. Em outro terminal, iniciar cliente:
+
+```powershell
+$env:DEVICE_URL="http://127.0.0.1:8080"
+$env:DEVICE_GUID="GUID_DO_DISPOSITIVO"
+$env:DEVICE_TOKEN="TOKEN_COPIADO"
+npm run client
+```
+
+Linux/macOS:
+
+```bash
+DEVICE_URL="http://127.0.0.1:8080" DEVICE_GUID="GUID_DO_DISPOSITIVO" DEVICE_TOKEN="TOKEN_COPIADO" npm run client
+```
+
+4. O cliente consulta configuração, confirma hash/revisão e comunica estado. Aguardar conectado/aplicado no portal.
+5. Solicitar teste de 5 s. Estado começa solicitado, depois recebido/iniciado e concluído mediante confirmação do cliente.
+6. Relógio desse cliente usa segundos reais; não clicar +15 minutos esperando acelerar sua execução.
+7. Publicar nova configuração: cliente aguarda ficar ocioso para aplicar.
+8. Sem servidor, cliente mantém configuração local e fila. Ao reconectar, retoma comunicação; comando vencido não inicia irrigação.
+9. Antes de voltar ao controlador interno, parar e encerrar cliente independente. Não operar dois controladores para o mesmo GUID.
+
+CLIENT_DB_PATH altera banco do cliente. Padrão data/client-GUID.sqlite, separado do banco do servidor. Não apagar banco para contornar erro de protocolo; ele preserva deduplicação e fila. Token e GUID devem corresponder. O cliente simula sensores/saídas em Node, sem GPIO físico.
+
+Desconexão de cliente HTTP é detectada por ausência de heartbeat em 90 s. Estado anterior de saída não é confirmação atual. Comando recebido sem ACK posterior pode ficar não confirmado e ser reconciliado; isso não autoriza repetição do acionamento.

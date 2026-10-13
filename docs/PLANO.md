@@ -1,92 +1,41 @@
-# Plano de entrega, esforços e decisões — v0.1
+# Plano de entrega — v0.5.0
 
-## Etapas e gates
+Atualizado em 13/10/2026. Consulte [BACKLOG.md](../BACKLOG.md) para prioridades, status, decisões e pendências. Este plano descreve fases; não mantém uma segunda lista concorrente de tarefas.
 
-| Fase | Entrega | Gate para avançar |
+| Fase | Estado | Condição para avançar |
 |---|---|---|
-| 0 | Requisitos, arquitetura, exemplos e aceite | Esta documentação revisável |
-| 1 | Portal central/local, API, banco e simulador | Cenários de ACEITE reproduzíveis |
-| 2 | Avaliação completa do firmware e hardware | Placa, válvulas, sensores, memória, pinagem e comunicação definidos |
-| 3 | Firmware C++ e documentação de compilação | Build reproduzível, testes de lógica e contratos |
-| 4 | Compilação/validação física pelo usuário e ajustes | Evidências de bancada e campo |
+| Requisitos/arquitetura | Documentados, evoluem com pedidos | Requisitos e decisões versionados |
+| Portal/API/simulação | Em desenvolvimento; v0.5 entregue | Validação de uso, segurança, recuperação e estabilidade |
+| Avaliação de hardware/firmware | Pendente | Placa, sensores, válvulas, drivers, fonte e pinagem definidos |
+| Firmware C++ | Pendente | Avaliação anterior, contrato e limites de memória fechados |
+| Bancada/campo | Pendente | Build reproduzível e evidências físicas |
 
-A fase 3 não é entregue junto de um protótipo visual. O usuário solicitou portal/simulação primeiro, avaliação depois e então firmware compilável.
+## Entregas
 
-## Backlog da fase 1
+- v0.2: portal central/local, controlador interno e persistência.
+- v0.3: fila/envio/recepção HTTP e revisões desejada/aplicada.
+- v0.4: propriedades/áreas, acesso e horários individuais por dia.
+- v0.5: conjuntos por solenoide, políticas temporais principais, cliente HTTP independente e backlog na raiz.
 
-P1-01: estrutura do projeto, ambiente, banco e schemas.
-P1-02: autenticação admin/operador e propriedade/áreas.
-P1-03: cadastro de GUIDs e componentes com limites.
-P1-04: setores e editor dos três modos.
-P1-05: agendas semanais/datas e hora final/duração.
-P1-06: controlador simulado com relógio virtual e journal.
-P1-07: portal local conectado ao simulador.
-P1-08: teste/manual/parada local e remoto com ACK.
-P1-09: histórico de 15 minutos e eventos imediatos.
-P1-10: integração configurável e cenários de erro.
-P1-11: testes de contrato, permissões e comportamento.
-P1-12: manual, seed e roteiro de demonstração.
+Relatórios de cada versão em VALIDACAO_V02.md a VALIDACAO_V05.md. Testes de software não encerram validação visual ou física.
 
-## Estimativa revisada
+## Próximos blocos
 
-Estimativa de engenharia, não compromisso de prazo. Considera um desenvolvedor experiente, stack reaproveitada conceitualmente e nenhum hardware real na fase 1.
+1. Validar conjuntos/agendas/cliente da v0.5 e implementar avisos prévios de conflito.
+2. Gestão completa de acesso/dispositivos, diagnóstico, filtros/exportação de histórico.
+3. Retenção, reprocessamento, backup, proteção de segredos, estabilidade e schemas do protocolo.
+4. Avaliar hardware e então implementar firmware.
 
-| Bloco fase 1 | Horas |
-|---|---:|
-| Base, schemas, banco e autenticação | 24–40 |
-| Dispositivos, áreas e componentes | 20–32 |
-| Agendas, modos e regras | 32–48 |
-| Simulador determinístico e falhas | 32–48 |
-| Portal local e comandos web | 24–40 |
-| Histórico e integração configurável | 32–48 |
-| Testes integrados, documentação e demo | 24–40 |
-| Total fase 1 | 188–296 |
+## Decisões já adotadas
 
-Reserva ~20%: 226–355 h, aproximadamente 6–9 semanas a 40 h/semana. Construção por entregas menores permite validar antes disso. Esta estimativa detalha o escopo novo, que inclui simulador determinístico e dois portais; não deve ser somada mecanicamente à estimativa anterior.
+Node 24+/SQLite/HTML/CSS/JS para piloto; perfis administrador/operador; 0–4 sensores por tipo e 0–4 solenoides; até 4 conjuntos; agenda por conjunto; temperatura somente monitoramento; padrão 1 saída simultânea; teste padrão 5 s/máximo 30 s; híbrido com um ciclo por janela. Configuração de produção/hardware continua pendente.
 
-Firmware/hardware: estimativa definitiva somente após fase 2. Referência preliminar de 140–240 h para avaliação, firmware de uma placa, drivers definidos, integração e ajustes de bancada, sem PCB própria. OTA/MQTT/RS485 e validação prolongada de campo alteram esforço.
+## Estimativas
 
-## Limite confirmado nesta revisão
+As estimativas originais eram preliminares e não são saldo de horas restantes. Reestimar cada pacote com escopo e critérios do backlog. Firmware tinha referência inicial de 140–240 h para uma placa/drivers definidos, sem PCB própria; confirmar após avaliação física, sem compromisso de prazo.
 
-Cada ESP32 permite 0–4 sensores de umidade, 0–4 sensores de temperatura e 0–4 solenoides. O limite de umidade foi confirmado pelo usuário em 13/10/2026 e deixa de ser uma pendência.
+## Avaliação antes do firmware
 
-## Decisões pendentes
+Modelo ESP32/flash/PSRAM, alimentação, válvula DC/AC/biestável, estado seguro, drivers/proteções, barramentos/pinagem com Wi-Fi, calibração, partições/TLS, armazenamento, fila, relógio monotônico, watchdog e distribuição. Medir memória com portal/rede/sensores ativos; limites do Node não são automaticamente limites do ESP32.
 
-| Decisão | Proposta inicial | Momento limite |
-|---|---|---|
-| Segundo usuário | Operador | Antes da autenticação |
-| Stack do portal | Nuxt/Vue + Fastify/TypeScript + Supabase | Início da fase 1 |
-| Novo frontend por AI Studio | Opcional, mesmo contrato | Antes de refazer telas |
-| Híbrido | Umidade dentro de janela; um ciclo por ocorrência | Antes do motor simulado |
-| Simultaneidade | 1 válvula, ajustável depois | Antes do motor simulado |
-| Teste | 5 s padrão, máximo 30 s | Antes da tela de controle |
-| Sensor controlador | Um por setor | Antes do editor de setores |
-| Fila/retencão | Limites medidos; perda visível | Antes da produção |
-| Licença | Definida pelo proprietário; preservar origens | Antes de redistribuir código |
-| Modelo ESP32/flash | Pendente | Fase 2 |
-| Tensão/tipo de válvula | Pendente | Fase 2 |
-| Sensores e calibração | Pendente | Fase 2 |
-| Bomba/vazão/pressão | Fora do primeiro piloto salvo alteração | Fase 2 |
-
-## Avaliação obrigatória antes do firmware
-
-Confirmar placa e variante ESP32; flash/PSRAM; alimentação e drivers; válvulas DC/AC/biestáveis; estado físico seguro; barramentos; pinagem com Wi-Fi; proteção elétrica; calibração; partições; TLS; usuários locais; recuperação da configuração; desgaste da flash; relógio; fila offline; tempo máximo; watchdog; distribuição/compilação.
-
-Medir memória com portal, TLS, sensores e fila simultâneos. Limites são baseados em medição, não somente em tamanho dos arquivos.
-Pacote de firmware terá versão, toolchain fixada, comando de compilação, binários se compilados, pinagem validada, instruções e limitações. Nunca declarar validação física baseada apenas em build.
-
-## Uso em novas conversas
-
-Referenciar este repositório e docs/PLANO.md + docs/REQUISITOS.md; pedir leitura do estado atual antes de implementar. Registro canônico de decisões e progresso fica nos arquivos versionados. URL no chat não garante contexto automático de futuras conversas.
-
-## Atualização v0.2.0
-
-Piloto executável inicial entregue em 13/10/2026. Ver EXECUCAO.md e VALIDACAO_V02.md. Gate integral da fase 1 permanece aberto; nenhuma avaliação/entrega de firmware foi antecipada.
-
-## Atualização v0.3.0
-
-Envio/recepção HTTP, ACK, fila persistente e revisão desejada/aplicada entregues em 13/10/2026. Validação da execução v0.2 confirmada pelo usuário. Ver VALIDACAO_V03.md para testes, migração e limites. Próximos blocos: propriedades/áreas e acesso isolado, política temporal, protocolo completo de máquina. Firmware não iniciado.
-
-## Atualização v0.4.0
-
-Solicitação de checkboxes/dias com horários próprios entregue junto de propriedades, áreas e isolamento de API. Ver VALIDACAO_V04.md. AT-30 possui implementação/testes no laboratório. Próximos blocos: políticas temporais e protocolo completo de máquina; firmware permanece posterior.
+Em novas conversas, referenciar este repositório, BACKLOG.md, AGENTS.md e docs/REQUISITOS.md. Ler estado atual antes de implementar.

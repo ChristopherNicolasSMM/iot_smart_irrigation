@@ -82,3 +82,9 @@ POST /api/config publica desejada; GET /api/configurations?guid=... consulta est
 calendar=weekly aceita day_times: lista de {weekday, times}, onde weekday segue ISO 1–7 e cada time tem id, start_time, termination e duration_s OU end_time/crosses_midnight. Dias ausentes estão desmarcados. Máximo 7 dias distintos/8 horários por dia/32 agendas por dispositivo. Exemplo completo em examples/weekly-per-day.json. Formato legado weekdays + horário comum permanece compatível.
 
 GET /api/properties lista vínculos; POST /api/property cria/edita; POST /api/property/select seleciona escopo da sessão. POST /api/area cria/edita na propriedade corrente; POST /api/user cria conta com vínculo e POST /api/member altera/concede perfil. GET /api/members exige administrador do sistema. Estado, eventos, histórico, fila, revisões e ações verificam escopo; GUID fora da propriedade retorna 404. Corpo de criação de dispositivo não determina propriedade: escopo é derivado da sessão.
+
+## Protocolo e conjuntos v0.5
+
+Conjunto continua em zones, com actuator_id, sensor_id opcional, temperature_sensor_id opcional e area_id; agendas continuam com zone_id. Eventos incluem group_id/group_name. GET /iot/v1/configuration retorna revisão/hash/configuração; POST /iot/v1/configuration/ack exige revisão/hash/status e idle=true para aplicação. GET /iot/v1/commands retorna comandos pendentes ou reconcile_only=true; estes últimos nunca autorizam novo acionamento. POST /iot/v1/commands/:id/events recebe transições e executed_at em confirmação tardia iniciado. POST /iot/v1/runtime informa active_groups e runs opcionais. Bearer identifica dispositivo. Expiração de comandos HTTP usa UTC real; relógio acelerado é exclusivo do simulador interno.
+
+POST /api/device/transport escolhe internal/http; GET /api/commands?guid=... consulta estados. POST /api/clock ajusta relógio interno, /api/clock-valid altera qualidade e /api/power altera energia simulada. Detalhes/limites em VALIDACAO_V05.md.

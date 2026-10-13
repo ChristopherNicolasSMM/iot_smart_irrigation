@@ -19,7 +19,7 @@ Data: 2026-10-13. Origem: requisitos desta conversa. “Confirmado” representa
 | RF-11 | Histórico de umidade em intervalos de 15 minutos | Confirmado |
 | RF-12 | Registrar acionamentos, omissões justificadas e tentativas com falha | Confirmado |
 | RF-13 | Testar acionamento no portal do ESP32 e no portal central | Confirmado |
-| RF-14 | Administrador e mais uma conta com usuário/senha | Confirmado; segundo perfil proposto: operador |
+| RF-14 | Administrador e mais uma conta com usuário/senha | Confirmado; perfil adicional adotado: operador |
 | RF-15 | Configurar destino, requisição, corpo e confirmação de envio | Confirmado |
 | RF-16 | Desenvolver portal e simulação antes do firmware | Confirmado |
 
@@ -147,3 +147,7 @@ Operação local deve continuar com configuração válida quando a nuvem cair. 
 ## Adendo confirmado em 13/10/2026
 
 Seleção semanal com checkboxes nomeados de segunda a domingo. Cada dia marcado permite horários próprios, com hora final ou duração, e múltiplos horários naquele dia. A v0.4 implementa day_times; agendas antigas continuam aceitas. Propriedades/áreas e vínculos humanos são implementados no portal; ver VALIDACAO_V04.md.
+
+## Conjuntos por solenoide — adendo v0.5
+
+Agrupar solenoide, sensor de umidade e temperatura como conjunto nomeado/identificado, com área, modo e agenda próprios. Uma solenoide por conjunto, até quatro conjuntos; sensores opcionais preservam os limites de 0–4 por tipo. Campos zones/zone_id permanecem compatíveis; sensor_id é umidade e temperature_sensor_id é temperatura. Temperatura não altera acionamento nesta fase. Status e pendências em BACKLOG.md.
