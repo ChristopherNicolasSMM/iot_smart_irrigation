@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "device": {
+    "guid": "97e157ec-93ab-4d4d-93c9-2ec7077746ec",
+    "name": "ESP32 Horta A",
+    "property_id": "property-demo",
+    "area_id": "area-horta",
+    "timezone": "America/Sao_Paulo",
+    "simulated": true
+  },
+  "monitoring": {
+    "history_interval_s": 900,
+    "control_sample_interval_s": 10
+  },
+  "limits": {
+    "temperature_sensors": 4,
+    "irrigation_actuators": 4,
+    "max_simultaneous_actuators": 1
+  },
+  "components": [
+    {
+      "id": "soil_1",
+      "name": "Umidade canteiro 1",
+      "kind": "soil_moisture",
+      "unit": "%relative",
+      "enabled": true
+    },
+    {
+      "id": "temp_1",
+      "name": "Temperatura canteiro 1",
+      "kind": "soil_temperature",
+      "unit": "degC",
+      "enabled": true
+    },
+    {
+      "id": "valve_1",
+      "name": "Solenoide canteiro 1",
+      "kind": "irrigation_actuator",
+      "enabled": true
+    }
+  ],
+  "zones": [
+    {
+      "id": "zone_1",
+      "name": "Canteiro 1",
+      "area_id": "area-horta",
+      "actuator_id": "valve_1",
+      "mode": "hybrid",
+      "moisture_control": {
+        "sensor_id": "soil_1",
+        "start_below": 30,
+        "target": 45,
+        "max_reading_age_s": 60
+      },
+      "safety": {
+        "max_run_s": 600,
+        "min_pause_s": 1800
+      },
+      "schedule_ids": [
+        "schedule_1"
+      ]
+    }
+  ],
+  "schedules": [
+    {
+      "id": "schedule_1",
+      "zone_id": "zone_1",
+      "enabled": true,
+      "calendar": {
+        "kind": "weekly",
+        "weekdays_iso": [
+          1,
+          3,
+          5
+        ]
+      },
+      "start_time": "06:00",
+      "termination": {
+        "kind": "end_time",
+        "end_time": "06:30",
+        "crosses_midnight": false
+      },
+      "max_cycles_per_occurrence": 1
+    }
+  ],
+  "access": {
+    "roles": [
+      "admin",
+      "operator"
+    ]
+  }
+}
