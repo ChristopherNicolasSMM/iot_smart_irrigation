@@ -76,7 +76,22 @@ export class Engine {
   this.event(d,'received','command_received',{command_id,zone_id,origin,actor});result.status=this.start(d,z,source,duration_s,{command_id,origin,actor})?'started':'rejected';return result;
  }
  windows(d,at=this.s.now){const p=localParts(at,d.config.timezone),today=Date.parse(p.date)/1000,out=[];for(const s of d.config.schedules.filter(s=>s.enabled).flatMap(scheduleSlots))for(const day of [today-86400,today]){const date=new Date(day*1000).toISOString().slice(0,10),weekday=new Date(day*1000).getUTCDay()||7;if(s.calendar==='date'?s.date!==date:!s.weekdays.includes(weekday))continue;const times=resolveWindow(date,s,d.config.timezone);out.push({schedule:s,key:`${s.id}${s.slot_key?':'+s.slot_key:''}:r${d.revision}:${date}`,inside:!times.invalid&&at>=times.start&&at<times.end,opening:at===times.start,remaining:times.end-at,start:times.start,invalid:times.invalid});}return out;}
- missed(d,from,to,reason){if(to-from>7*86400)this.event(d,'omitted','missed_scan_truncated',{from,to,checked_from:to-7*86400});const windows=new Map();from=Math.max(from,to-7*86400);for(let time=from;time<=to;time+=43200)for(const w of this.windows(d,time))windows.set(w.key,w);for(const w of this.windows(d,to))windows.set(w.key,w);for(const w of windows.values()){const z=d.config.zones.find(z=>z.id===w.schedule.zone_id);if(z.mode!=='dynamic'&&w.start>from&&w.start<=to&&!d.occurrences[w.key]){d.occurrences[w.key]=true;this.decide(d,z,w.key,reason);}}}
+ missed(d,from,to,reason){
+  const originalFrom=from,checkedFrom=Math.max(from,to-7*86400),windows=new Map();
+  if(to-from>7*86400)this.event(d,'omitted','missed_scan_truncated',{from,to,checked_from:checkedFrom,specific_dates_included:true});
+  // Weekly scans stay bounded. Known date schedules are checked across the full
+  // outage, even when older than seven days; no history is guessed for old configs.
+  for(let time=checkedFrom;time<=to;time+=43200)for(const w of this.windows(d,time))windows.set(w.key,w);
+  for(const w of this.windows(d,to))windows.set(w.key,w);
+  for(const schedule of d.config.schedules.filter(s=>s.enabled&&s.calendar==='date')){
+   const start=resolveWindow(schedule.date,schedule,d.config.timezone).start;
+   if(Number.isFinite(start)&&start>originalFrom&&start<=to)for(const w of this.windows(d,start))if(w.schedule.calendar==='date')windows.set(w.key,w);
+  }
+  for(const w of windows.values()){
+   const z=d.config.zones.find(z=>z.id===w.schedule.zone_id),lower=w.schedule.calendar==='date'?originalFrom:checkedFrom;
+   if(z.mode!=='dynamic'&&w.start>lower&&w.start<=to&&!d.occurrences[w.key]){d.occurrences[w.key]=true;this.decide(d,z,w.key,reason);}
+  }
+ }
  setClock(now){if(!Number.isInteger(now)||now<946684800||now>4102444800||Math.abs(now-this.s.now)>7*86400)fail('Ajuste de relógio deve ser de até sete dias (2000–2100)');const previous=this.s.now;this.s.now=now;for(const d of this.s.devices.filter(d=>d.transport!=='http'&&!d.archived)){if(now>previous)this.missed(d,previous,now,'clock_adjustment_missed');for(const z of d.config.zones){const a=d.active[z.id];if(a){if(['static','dynamic','hybrid'].includes(a.source))this.stop(d,z,'clock_adjusted');else a.deadline=now+Math.max(0,a.deadline_uptime-(this.s.uptime||0));}}this.event(d,'clock_adjusted','clock_adjusted',{previous_time:previous,new_time:now});}}
  clockValid(d,valid){if(typeof valid!=='boolean')fail('Estado do relógio inválido');d.clock_valid=valid;if(!valid)for(const z of d.config.zones)if(['static','dynamic','hybrid'].includes(d.active[z.id]?.source))this.stop(d,z,'clock_invalid');this.event(d,'clock_quality',valid?'clock_restored':'clock_invalid');}
  power(d,on){if(typeof on!=='boolean')fail('Estado de energia inválido');if(d.powered===on)return;if(!on){for(const z of d.config.zones)this.stop(d,z,'power_loss');d.power_off_at=this.s.now;d.powered=false;}else{this.missed(d,d.power_off_at??this.s.now,this.s.now,'power_off_missed');d.powered=true;d.boot++;d.next_sample_uptime=(this.s.uptime||0)+900;}this.event(d,on?'powered_on':'powered_off',on?'power_restored':'power_loss');}

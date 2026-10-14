@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "message_id": "d9aa67d0-2784-4c26-8577-74c0515eeb94",
+  "device_guid": "97e157ec-93ab-4d4d-93c9-2ec7077746ec",
+  "boot_id": "d2d0d461-d3f8-49a1-a1f1-a88da87d56f1",
+  "sequence": 12,
+  "recorded_at": "2026-10-12T09:00:00Z",
+  "time_quality": "synchronized",
+  "configuration_revision": 1,
+  "simulated": true,
+  "readings": [
+    {
+      "component_id": "soil_1",
+      "metric": "soil_moisture",
+      "value": 29,
+      "unit": "%relative",
+      "quality": "valid",
+      "recorded_at": "2026-10-12T09:00:00Z"
+    },
+    {
+      "component_id": "temp_1",
+      "metric": "soil_temperature",
+      "value": 24.5,
+      "unit": "degC",
+      "quality": "valid",
+      "recorded_at": "2026-10-12T09:00:00Z"
+    }
+  ],
+  "outputs": [
+    {
+      "component_id": "valve_1",
+      "commanded_state": "on",
+      "feedback_kind": "electrical_output"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "36949b0a-9f58-4e3a-a3ec-149420d31d52",
+      "zone_id": "zone_1",
+      "actuator_id": "valve_1",
+      "kind": "started",
+      "source": "hybrid",
+      "occurrence_id": "schedule_1:r1:2026-10-12",
+      "reason": "below_start_threshold",
+      "recorded_at": "2026-10-12T09:00:00Z",
+      "device_guid": "97e157ec-93ab-4d4d-93c9-2ec7077746ec",
+      "revision": 1
+    }
+  ]
+}

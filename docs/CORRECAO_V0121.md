@@ -18,7 +18,7 @@ Um novo teste mantém a consulta de configuração bloqueada e chama poll novame
 
 ## Validação e atualização
 
-217 testes aprovados no ambiente Linux disponível, npm run check e git diff --check. Os testes focados foram repetidos para verificar concorrência; guardas verificam fechamento do banco e sincronização em disputa. Não houve execução nativa de Windows nesta entrega: atualizar e repetir a suíte nesse ambiente para confirmar a correção enviada pelo usuário.
+217 testes aprovados no ambiente Linux disponível, npm run check e git diff --check. Os testes focados foram repetidos para verificar concorrência; guardas verificam fechamento do banco e sincronização em disputa. Não houve execução nativa de Windows nesta entrega: atualizar e repetir a suíte nesse ambiente para confirmar a correção enviada pelo usuário. O usuário confirmou a validação no Windows em 14/10/2026, antes de autorizar a v0.13.
 
 PowerShell, com portal/cliente parados:
 
@@ -36,4 +36,4 @@ node --test tests/backup.test.js tests/client-recovery.test.js
 
 Depois reinicie portal/cliente. Não há migração adicional, troca de chave ou necessidade de apagar data/. O ExperimentalWarning de SQLite mostrado no log é distinto das exceções EBUSY e da asserção started/completed. Não removemos avisos do runtime para fazer testes parecerem aprovados.
 
-A validação visual/hardware e o alerta nativo do ensaio longo da v0.12 continuam com o status anterior. Etapas 4–6 permanecem reservadas para a próxima entrega consolidada.
+A validação visual/hardware e o alerta nativo do ensaio longo da v0.12 continuam com o status anterior. Etapas 4–6 foram consolidadas posteriormente na v0.13, conforme VALIDACAO_V013.md.

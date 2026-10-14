@@ -179,3 +179,7 @@ Backup do portal cifrado com senha externa e recuperação exclusiva em banco no
 ## Consolidação — adendo v0.12
 
 Entrega 1–3 aprovada: proteção de estado/segredos da fila por chave externa com migração/rotação em novo banco; backup do portal/cliente e recuperação bloqueada até configuração desabilitada confirmada no cliente; estabilidade/desempenho medidos no piloto; telemetria recebida pode usar perfil externo por GUID, sem dependência do canal de controle. ACK local não confirma destino externo. Próxima entrega reúne contrato, testes temporais raros e validação de uso (etapas 4–6); hardware/firmware após avaliação conjunta. Ver OPERACAO_SEGURA.md e VALIDACAO_V012.md.
+
+## Contrato, tempo e conferência — adendo v0.13
+
+Etapas 4–6 entregues em software: schemas/OpenAPI e fixtures do protocolo HTTP v1, validação/hash compartilhados, cenários temporais raros e recuperação de datas específicas antigas sem execução tardia, conferência do portal em navegador desktop/móvel e roteiro de validação do usuário. Recuperação semanal continua delimitada com resumo explícito; não inferir meses de ocorrências ou revisão antiga sem prova. Firmware/hardware continuam posteriores à revisão e aprovação HW-01/HW-02. Evidências e limites em VALIDACAO_V013.md.

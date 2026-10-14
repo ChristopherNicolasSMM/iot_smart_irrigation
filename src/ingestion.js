@@ -1,3 +1,4 @@
+import {assertContract} from './contracts.js';
 import {historyContext} from './history-context.js';
 import { createHash } from 'node:crypto';
 import { ValidationError } from './engine.js';
@@ -5,6 +6,7 @@ const fail=message=>{throw new ValidationError(message);};
 export function initIngestion(db){db.exec(`CREATE TABLE IF NOT EXISTS device_credentials(device TEXT PRIMARY KEY,hash TEXT NOT NULL); CREATE TABLE IF NOT EXISTS inbox(device TEXT,message_id TEXT,hash TEXT NOT NULL,received_at TEXT NOT NULL,PRIMARY KEY(device,message_id)); CREATE TABLE IF NOT EXISTS incoming_events(device TEXT,event_id TEXT,PRIMARY KEY(device,event_id));`);}
 export const tokenHash=token=>createHash('sha256').update(token).digest('hex');
 export function ingest(db,state,d,payload){
+ assertContract('Telemetry',payload);
  if(payload?.integration_trace!==undefined&&(!Array.isArray(payload.integration_trace)||payload.integration_trace.length>4||payload.integration_trace.some(x=>typeof x!=='string'||x.length<1||x.length>100)||new Set(payload.integration_trace).size!==payload.integration_trace.length))fail('Rastro de integração inválido');
  if(payload?.source_message_id!==undefined&&(typeof payload.source_message_id!=='string'||!payload.source_message_id||payload.source_message_id.length>100))fail('ID de origem inválido');
  const validID=x=>typeof x==='string'&&x.length>=1&&x.length<=100;

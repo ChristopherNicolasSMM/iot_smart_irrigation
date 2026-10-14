@@ -1,0 +1,37 @@
+{
+  "active_groups": [
+    "zone_1"
+  ],
+  "runs": [
+    {
+      "group_id": "zone_1",
+      "source": "test",
+      "started_at": 1791795600,
+      "deadline": 1791795605,
+      "command_id": "test-command"
+    }
+  ],
+  "controller_status": {
+    "revision": 1,
+    "clock_valid": true,
+    "now": 1791795600,
+    "uptime": 100,
+    "sensors": {
+      "soil_1": {
+        "value": 29,
+        "quality": "valid",
+        "updated_uptime": 100,
+        "updated_at": 1791795600
+      },
+      "temp_1": {
+        "value": 24,
+        "quality": "valid",
+        "updated_uptime": 100
+      }
+    },
+    "last_stop_uptime": {
+      "zone_1": 0
+    },
+    "consumed_occurrences": []
+  }
+}

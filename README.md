@@ -1,6 +1,6 @@
 # IoT Smart Irrigation — Conecta Agro Irrigação
 
-Piloto executável v0.12.1 — 14/10/2026.
+Piloto executável v0.13.0 — 14/10/2026.
 
 Sistema de irrigação configurável para múltiplos ESP32, com portal central, portal local, simulação e futura implementação de firmware. Repositório canônico: https://github.com/ChristopherNicolasSMM/iot_smart_irrigation.
 
@@ -19,7 +19,7 @@ npm start
 Abrir http://127.0.0.1:8080 (central) ou http://127.0.0.1:8080/local (local simulado).
 Login inicial: admin / admin-demo-2026 ou operador / operador-demo-2026.
 
-Leia [execução e demonstração](docs/EXECUCAO.md) e [validação/limites](docs/VALIDACAO_V012.md). O piloto não fecha todo o gate da fase 1.
+Leia [execução e demonstração](docs/EXECUCAO.md) e [validação/limites](docs/VALIDACAO_V013.md). O piloto não fecha todo o gate da fase 1.
 Sequência solicitada: **documentação → portal e simulação → avaliação completa do firmware → implementação e entrega para compilação e validação física**.
 
 ## Documentos
@@ -27,6 +27,10 @@ Sequência solicitada: **documentação → portal e simulação → avaliação
 - [Backlog atualizado na raiz](BACKLOG.md)
 - [Correção de testes Windows e sincronização do cliente](docs/CORRECAO_V0121.md)
 - [Entrega consolidada 1–3 e medições](docs/VALIDACAO_V012.md)
+- [Entrega consolidada 4–6](docs/VALIDACAO_V013.md)
+- [Contrato JSON Schema/OpenAPI e fixtures](contracts/README.md)
+- [Roteiro de conferência do portal](docs/ROTEIRO_PORTAL_V013.md)
+- [Preparação para avaliar ESP32](docs/PREPARACAO_ESP32.md)
 - [Operação segura: chave, migração, rotação e recuperação](docs/OPERACAO_SEGURA.md)
 
 - [Requisitos e regras de irrigação](docs/REQUISITOS.md)
@@ -63,6 +67,6 @@ A análise anterior foi estática. Banco remoto, políticas RLS, operação real
 
 O GitHub conectado já confirmou acesso de leitura e escrita ao repositório. Informar seu link e mantê-lo autorizado na conexão permite trabalhar com seus arquivos aqui. Se o acesso for revogado, será necessário habilitá-lo novamente nas permissões da conexão GitHub. Nunca enviar tokens ou senhas no chat.
 
-## Próxima entrega
+## Próxima sequência
 
-Consolidar etapas **4 a 6**: schemas/OpenAPI e contrato compartilhado, testes temporais raros/recuperação longa e conferência de uso/roteiro de validação do portal. Depois das duas entregas, avaliar hardware e preparar ESP32. Ver BACKLOG.md e docs/VALIDACAO_V012.md para evidências, alerta do ensaio longo e limites.
+Entregas **1–3 e 4–6 implementadas no piloto**. Conferir v0.13 no ambiente do usuário, revisar as evidências e iniciar avaliação HW-01/HW-02: placa/flash, sensores, solenoides, drivers/fonte, pinagem e limites. Firmware será preparado após essas decisões. Ver docs/PREPARACAO_ESP32.md e BACKLOG.md.

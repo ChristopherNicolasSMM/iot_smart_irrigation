@@ -1,0 +1,131 @@
+{
+  "name": "ESP32 · Horta",
+  "area": "Horta principal",
+  "timezone": "America/Sao_Paulo",
+  "max_simultaneous": 4,
+  "components": [
+    {
+      "id": "soil_1",
+      "name": "Umidade 1",
+      "kind": "soil_moisture",
+      "enabled": true
+    },
+    {
+      "id": "temp_1",
+      "name": "Temperatura 1",
+      "kind": "soil_temperature",
+      "enabled": true
+    },
+    {
+      "id": "valve_1",
+      "name": "Solenoide 1",
+      "kind": "irrigation_actuator",
+      "enabled": true
+    },
+    {
+      "id": "soil_2",
+      "name": "Umidade 2",
+      "kind": "soil_moisture",
+      "enabled": true
+    },
+    {
+      "id": "temp_2",
+      "name": "Temperatura 2",
+      "kind": "soil_temperature",
+      "enabled": true
+    },
+    {
+      "id": "valve_2",
+      "name": "Solenoide 2",
+      "kind": "irrigation_actuator",
+      "enabled": true
+    },
+    {
+      "id": "soil_3",
+      "name": "Umidade 3",
+      "kind": "soil_moisture",
+      "enabled": true
+    },
+    {
+      "id": "temp_3",
+      "name": "Temperatura 3",
+      "kind": "soil_temperature",
+      "enabled": true
+    },
+    {
+      "id": "valve_3",
+      "name": "Solenoide 3",
+      "kind": "irrigation_actuator",
+      "enabled": true
+    },
+    {
+      "id": "soil_4",
+      "name": "Umidade 4",
+      "kind": "soil_moisture",
+      "enabled": true
+    },
+    {
+      "id": "temp_4",
+      "name": "Temperatura 4",
+      "kind": "soil_temperature",
+      "enabled": true
+    },
+    {
+      "id": "valve_4",
+      "name": "Solenoide 4",
+      "kind": "irrigation_actuator",
+      "enabled": true
+    }
+  ],
+  "zones": [
+    {
+      "id": "zone_1",
+      "name": "Conjunto 1",
+      "actuator_id": "valve_1",
+      "sensor_id": "soil_1",
+      "temperature_sensor_id": "temp_1",
+      "mode": "hybrid",
+      "start_below": 30,
+      "target": 45,
+      "max_run_s": 600,
+      "min_pause_s": 1800
+    },
+    {
+      "id": "zone_2",
+      "name": "Conjunto 2",
+      "actuator_id": "valve_2",
+      "sensor_id": "soil_2",
+      "temperature_sensor_id": "temp_2",
+      "mode": "hybrid",
+      "start_below": 30,
+      "target": 45,
+      "max_run_s": 600,
+      "min_pause_s": 1800
+    },
+    {
+      "id": "zone_3",
+      "name": "Conjunto 3",
+      "actuator_id": "valve_3",
+      "sensor_id": "soil_3",
+      "temperature_sensor_id": "temp_3",
+      "mode": "hybrid",
+      "start_below": 30,
+      "target": 45,
+      "max_run_s": 600,
+      "min_pause_s": 1800
+    },
+    {
+      "id": "zone_4",
+      "name": "Conjunto 4",
+      "actuator_id": "valve_4",
+      "sensor_id": "soil_4",
+      "temperature_sensor_id": "temp_4",
+      "mode": "hybrid",
+      "start_below": 30,
+      "target": 45,
+      "max_run_s": 600,
+      "min_pause_s": 1800
+    }
+  ],
+  "schedules": []
+}

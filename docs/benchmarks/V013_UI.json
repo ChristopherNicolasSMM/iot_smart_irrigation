@@ -1,0 +1,31 @@
+{
+  "application_version": "0.13.0",
+  "node": "v24.19.0",
+  "platform": "linux",
+  "browser": "153.0.8010.0",
+  "viewports": [
+    {
+      "width": 1366,
+      "height": 900
+    },
+    {
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "checks": [
+    "login_admin",
+    "weekly_checkboxes_7",
+    "day_times_persisted",
+    "configuration_pending_applied",
+    "navigation_tabs",
+    "internal_command_completed",
+    "history_15min",
+    "logout",
+    "stale_response_after_logout_blocked",
+    "operator_restrictions",
+    "mobile_no_horizontal_overflow"
+  ],
+  "page_errors": [],
+  "disposable_database": true
+}

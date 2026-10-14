@@ -254,3 +254,9 @@ Cliente deve ser atualizado para suportar recuperação em quarentena. Encaminha
 ## Correção v0.12.1 — Windows
 
 A v0.12.1 corrige limpeza de arquivos SQLite nos testes e espera da sincronização do cliente. Com portal/cliente parados, git pull --ff-only, npm test e npm run check. Reinicie os processos após atualizar. Sem migração adicional nem alteração de bancos/chaves. Ver CORRECAO_V0121.md para o diagnóstico e evidências; confirmação no Windows permanece a cargo do ambiente do usuário.
+
+## Atualização v0.13 — entrega consolidada 4–6
+
+Preservar bancos/chaves e parar os processos antes de git pull --ff-only. Executar npm test, npm run check e npm run contracts:check; reiniciar portal e cliente com os parâmetros existentes. Não há migração adicional nem nova dependência de funcionamento. Esquemas públicos em /contracts/iot-v1.schema.json e /contracts/openapi.json. Cliente atualizado valida resposta/hash antes de aplicar configuração; exemplos em examples/ agora seguem o formato real.
+
+npm run test:ui é opcional e requer ferramenta Playwright/navegador local para conferir a interface em banco descartável, conforme ROTEIRO_PORTAL_V013.md. A v0.12.1 foi confirmada pelo usuário no Windows; validar esta nova entrega nesse ambiente. A próxima sequência é avaliação de hardware/recursos, sem iniciar firmware antes das decisões em PREPARACAO_ESP32.md.

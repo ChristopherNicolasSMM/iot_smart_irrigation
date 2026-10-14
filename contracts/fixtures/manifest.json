@@ -1,0 +1,158 @@
+[
+  {
+    "file": "configuration.json",
+    "contract": "DeviceConfiguration",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "configuration-zero.json",
+    "contract": "DeviceConfiguration",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "configuration-max.json",
+    "contract": "DeviceConfiguration",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "configuration-legacy-weekdays.json",
+    "contract": "DeviceConfiguration",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "configuration-response.json",
+    "contract": "ConfigurationResponse",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "configuration-ack.json",
+    "contract": "ConfigurationAck",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "configuration-rejected.json",
+    "contract": "ConfigurationAck",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "telemetry.json",
+    "contract": "Telemetry",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "telemetry-legacy.json",
+    "contract": "Telemetry",
+    "valid": true,
+    "note": "Revisão, boot, métrica e outputs opcionais no legado."
+  },
+  {
+    "file": "telemetry-missing.json",
+    "contract": "Telemetry",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "telemetry-ack.json",
+    "contract": "TelemetryAck",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "commands.json",
+    "contract": "CommandsResponse",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "commands-reconcile.json",
+    "contract": "CommandsResponse",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "commands-stop.json",
+    "contract": "CommandsResponse",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "command-event.json",
+    "contract": "CommandEvent",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "runtime-legacy.json",
+    "contract": "Runtime",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "runtime.json",
+    "contract": "Runtime",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "ack.json",
+    "contract": "AckResponse",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "error.json",
+    "contract": "Error",
+    "valid": true,
+    "note": ""
+  },
+  {
+    "file": "invalid-version.json",
+    "contract": "Telemetry",
+    "valid": false,
+    "note": "Versão futura não negociada."
+  },
+  {
+    "file": "invalid-date.json",
+    "contract": "Telemetry",
+    "valid": false,
+    "note": "Data impossível."
+  },
+  {
+    "file": "invalid-null-reading.json",
+    "contract": "Telemetry",
+    "valid": false,
+    "note": "Sem coerção de valor textual."
+  },
+  {
+    "file": "invalid-duplicate-trace.json",
+    "contract": "Telemetry",
+    "valid": false,
+    "note": "Rastro repetido."
+  },
+  {
+    "file": "invalid-active-count.json",
+    "contract": "Runtime",
+    "valid": false,
+    "note": "Até quatro conjuntos."
+  },
+  {
+    "file": "invalid-components-limit.json",
+    "contract": "DeviceConfiguration",
+    "valid": false,
+    "note": "Até doze componentes, quatro por categoria na regra de domínio."
+  },
+  {
+    "file": "invalid-calendar.json",
+    "contract": "DeviceConfiguration",
+    "valid": false,
+    "note": "Calendário não suportado."
+  }
+]

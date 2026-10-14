@@ -1,0 +1,9 @@
+{
+  "name": "Monitoramento vazio",
+  "area": "Área",
+  "timezone": "America/Sao_Paulo",
+  "max_simultaneous": 1,
+  "components": [],
+  "zones": [],
+  "schedules": []
+}

@@ -189,3 +189,11 @@ Migração: outbox acrescenta cycle_attempts/reprocess_count/finished_at/retaine
 ## Adendo v0.12 — encaminhamento HTTP
 
 POST /iot/v1/telemetry aceita integration_trace opcional (até quatro identificadores distintos de 1–100 caracteres) e source_message_id opcional de 1–100 caracteres. Resposta acrescenta forwarding.status e message_id externo quando uma tentativa de encaminhamento é criada. accepted confirma apenas armazenamento local; duplicate não cria novo encaminhamento. IDs externos derivados por gateway/propriedade/GUID/ID recebido são estáveis; payload externo força integration_trace/source_message_id. Perfil, autenticação, ACK e limites permanecem configurados por GUID. Detalhes/status/limites em VALIDACAO_V012.md. OpenAPI/fixtures e consolidação definitiva ficam na próxima entrega, conforme solicitado.
+
+## Consolidação v0.13 — fonte executável de dispositivo
+
+contracts/iot-v1.schema.json, contracts/openapi.json e contracts/fixtures/ são a fonte estrutural do HTTP v1 implementado. Ler contracts/README.md para semântica, compatibilidade e hash. Exemplos antigos propostos foram alinhados ao formato real; dados persistidos não foram convertidos. API administrativa descrita neste documento não está integralmente no OpenAPI de máquina.
+
+GET /health informa protocol_version=1 e contract_version=1.0.0, além da versão do aplicativo. GET /contracts/iot-v1.schema.json e /contracts/openapi.json são públicos e sem segredos. Cliente/servidor aplicam validação compartilhada; cliente verifica SHA-256 da configuração antes de aplicar. Stop emitido pelo protocolo usa duration_s=0 e ignora duração inválida da solicitação. V1, campos opcionais do legado e day_times/weekdays mantidos; pacotes estruturalmente malformados/datas impossíveis recebem erro explícito.
+
+Recuperação longa inclui datas específicas conhecidas em toda a parada e recorta weekly a sete dias, com missed_scan_truncated/specific_dates_included. Lacuna de até 48 h pode gerar instante de log, nunca autorização para irrigar. Corpo de configuração não recebeu pinagem/driver físicos nesta versão; avaliação posterior. Ver VALIDACAO_V013.md.

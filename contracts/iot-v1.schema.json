@@ -1,0 +1,1062 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ChristopherNicolasSMM/iot_smart_irrigation/main/contracts/iot-v1.schema.json",
+  "title": "IoT Smart Irrigation — contrato HTTP v1",
+  "description": "Contrato estrutural do piloto. Semântica de referências, revisão, tempo e acesso é validada pelo controlador/portal. Extensões são permitidas.",
+  "x-contract-version": "1.0.0",
+  "$defs": {
+    "Id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "not": {
+        "enum": [
+          "__proto__",
+          "constructor",
+          "prototype"
+        ]
+      }
+    },
+    "MessageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "Guid": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Provisionamentos novos usam UUID. Identidades legadas não são reescritas."
+    },
+    "Timestamp": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:[0-5]\\d(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "Clock": {
+      "type": "string",
+      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+    },
+    "Date": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "OptionalId": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Id"
+        },
+        {
+          "const": ""
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "Component": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "kind": {
+          "enum": [
+            "soil_moisture",
+            "soil_temperature",
+            "irrigation_actuator"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "enabled"
+      ],
+      "additionalProperties": true
+    },
+    "Group": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "actuator_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "sensor_id": {
+          "$ref": "#/$defs/OptionalId"
+        },
+        "temperature_sensor_id": {
+          "$ref": "#/$defs/OptionalId"
+        },
+        "area_id": {
+          "$ref": "#/$defs/OptionalId"
+        },
+        "mode": {
+          "enum": [
+            "static",
+            "dynamic",
+            "hybrid"
+          ]
+        },
+        "start_below": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "target": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "max_run_s": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "min_pause_s": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 86400
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "actuator_id",
+        "mode",
+        "max_run_s",
+        "min_pause_s"
+      ],
+      "additionalProperties": true
+    },
+    "TimeSlot": {
+      "type": "object",
+      "properties": {
+        "start_time": {
+          "$ref": "#/$defs/Clock"
+        },
+        "termination": {
+          "enum": [
+            "duration",
+            "end_time"
+          ]
+        },
+        "duration_s": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "end_time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Clock"
+            },
+            {
+              "const": ""
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "crosses_midnight": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "start_time",
+        "termination"
+      ],
+      "additionalProperties": true,
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "termination": {
+              "const": "duration"
+            }
+          },
+          "required": [
+            "duration_s"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "termination": {
+              "const": "end_time"
+            }
+          },
+          "required": [
+            "end_time"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "DailyTime": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/TimeSlot"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Id"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": true
+        }
+      ]
+    },
+    "WeekdayTimes": {
+      "type": "object",
+      "properties": {
+        "weekday": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7
+        },
+        "times": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DailyTime"
+          },
+          "maxItems": 8,
+          "minItems": 1
+        }
+      },
+      "required": [
+        "weekday",
+        "times"
+      ],
+      "additionalProperties": true
+    },
+    "Schedule": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Id"
+            },
+            "zone_id": {
+              "$ref": "#/$defs/Id"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "calendar": {
+              "enum": [
+                "weekly",
+                "date"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "zone_id",
+            "enabled",
+            "calendar"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "calendar": {
+                  "const": "weekly"
+                },
+                "day_times": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/WeekdayTimes"
+                  },
+                  "maxItems": 7,
+                  "minItems": 1
+                }
+              },
+              "required": [
+                "day_times"
+              ],
+              "additionalProperties": true
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/TimeSlot"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "calendar": {
+                      "const": "weekly"
+                    },
+                    "weekdays": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 7
+                      },
+                      "maxItems": 7,
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "weekdays"
+                  ],
+                  "additionalProperties": true
+                }
+              ]
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/TimeSlot"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "calendar": {
+                      "const": "date"
+                    },
+                    "date": {
+                      "$ref": "#/$defs/Date"
+                    }
+                  },
+                  "required": [
+                    "date"
+                  ],
+                  "additionalProperties": true
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "DeviceConfiguration": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "area": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 100
+        },
+        "area_id": {
+          "$ref": "#/$defs/OptionalId"
+        },
+        "timezone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "max_simultaneous": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Component"
+          },
+          "maxItems": 12
+        },
+        "zones": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Group"
+          },
+          "maxItems": 4
+        },
+        "schedules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Schedule"
+          },
+          "maxItems": 32
+        }
+      },
+      "required": [
+        "name",
+        "area",
+        "timezone",
+        "max_simultaneous",
+        "components",
+        "zones",
+        "schedules"
+      ],
+      "additionalProperties": true
+    },
+    "Reading": {
+      "type": "object",
+      "properties": {
+        "component_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "metric": {
+          "enum": [
+            "soil_moisture",
+            "soil_temperature"
+          ]
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "quality": {
+          "enum": [
+            "valid",
+            "invalid",
+            "stale",
+            "missing"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "recorded_at": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "component_id",
+        "value",
+        "quality",
+        "recorded_at"
+      ],
+      "additionalProperties": true
+    },
+    "Output": {
+      "type": "object",
+      "properties": {
+        "component_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "commanded_state": {
+          "enum": [
+            "on",
+            "off"
+          ]
+        },
+        "feedback_kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        }
+      },
+      "required": [
+        "component_id",
+        "commanded_state"
+      ],
+      "additionalProperties": true
+    },
+    "Event": {
+      "type": "object",
+      "properties": {
+        "event_id": {
+          "$ref": "#/$defs/MessageId"
+        },
+        "device_guid": {
+          "$ref": "#/$defs/Guid"
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "recorded_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "command_id": {
+          "$ref": "#/$defs/MessageId"
+        },
+        "zone_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "group_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "source": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "event_id",
+        "device_guid",
+        "kind",
+        "reason",
+        "recorded_at"
+      ],
+      "additionalProperties": true
+    },
+    "Telemetry": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "message_id": {
+          "$ref": "#/$defs/MessageId"
+        },
+        "device_guid": {
+          "$ref": "#/$defs/Guid"
+        },
+        "boot_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "recorded_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "configuration_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "time_quality": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "simulated": {
+          "type": "boolean"
+        },
+        "readings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Reading"
+          },
+          "maxItems": 8
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Output"
+          },
+          "maxItems": 4
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Event"
+          },
+          "maxItems": 50
+        },
+        "integration_trace": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MessageId"
+          },
+          "maxItems": 4,
+          "uniqueItems": true
+        },
+        "source_message_id": {
+          "$ref": "#/$defs/MessageId"
+        }
+      },
+      "required": [
+        "schema_version",
+        "message_id",
+        "device_guid",
+        "recorded_at",
+        "readings",
+        "events"
+      ],
+      "additionalProperties": true
+    },
+    "ConfigurationResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "device_guid": {
+          "$ref": "#/$defs/Guid"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "configuration": {
+          "$ref": "#/$defs/DeviceConfiguration"
+        },
+        "configuration_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "server_time": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "schema_version",
+        "device_guid",
+        "revision",
+        "configuration",
+        "configuration_hash",
+        "server_time"
+      ],
+      "additionalProperties": true
+    },
+    "ConfigurationAck": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "configuration_hash": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "status": {
+          "enum": [
+            "applied",
+            "rejected"
+          ]
+        },
+        "idle": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "revision",
+        "configuration_hash",
+        "status"
+      ],
+      "additionalProperties": true
+    },
+    "Command": {
+      "type": "object",
+      "properties": {
+        "command_id": {
+          "$ref": "#/$defs/MessageId"
+        },
+        "device_guid": {
+          "$ref": "#/$defs/Guid"
+        },
+        "zone_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "group_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "actuator_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "action": {
+          "enum": [
+            "start",
+            "stop"
+          ]
+        },
+        "source": {
+          "enum": [
+            "test",
+            "manual"
+          ]
+        },
+        "duration_s": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "configuration_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "issued_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "expires_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "reconcile_only": {
+          "type": "boolean"
+        },
+        "actor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "command_id",
+        "device_guid",
+        "zone_id",
+        "actuator_id",
+        "action",
+        "source",
+        "duration_s",
+        "configuration_revision",
+        "issued_at",
+        "expires_at",
+        "reconcile_only"
+      ],
+      "additionalProperties": true
+    },
+    "CommandsResponse": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "device_guid": {
+          "$ref": "#/$defs/Guid"
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Command"
+          },
+          "maxItems": 20
+        },
+        "server_time": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "schema_version",
+        "device_guid",
+        "commands",
+        "server_time"
+      ],
+      "additionalProperties": true
+    },
+    "CommandEvent": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "received",
+            "started",
+            "completed",
+            "interrupted",
+            "rejected",
+            "expired",
+            "failed"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 200
+        },
+        "executed_at": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "additionalProperties": true
+    },
+    "SensorState": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "quality": {
+          "enum": [
+            "valid",
+            "invalid",
+            "stale",
+            "missing"
+          ]
+        },
+        "updated_at": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4102444800
+        },
+        "updated_uptime": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "quality"
+      ],
+      "additionalProperties": true
+    },
+    "ControllerStatus": {
+      "type": "object",
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "clock_valid": {
+          "type": "boolean"
+        },
+        "now": {
+          "type": "number",
+          "minimum": 946684800,
+          "maximum": 4102444800
+        },
+        "uptime": {
+          "type": "number",
+          "minimum": 0
+        },
+        "sensors": {
+          "type": "object",
+          "maxProperties": 8,
+          "additionalProperties": {
+            "$ref": "#/$defs/SensorState"
+          }
+        },
+        "last_stop_uptime": {
+          "type": "object",
+          "maxProperties": 4,
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "consumed_occurrences": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 300
+          },
+          "maxItems": 512
+        }
+      },
+      "required": [
+        "revision",
+        "clock_valid",
+        "now",
+        "uptime",
+        "sensors",
+        "last_stop_uptime",
+        "consumed_occurrences"
+      ],
+      "additionalProperties": true
+    },
+    "Run": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "$ref": "#/$defs/Id"
+        },
+        "source": {
+          "enum": [
+            "static",
+            "dynamic",
+            "hybrid",
+            "manual",
+            "test"
+          ]
+        },
+        "deadline": {
+          "type": "number",
+          "minimum": 0
+        },
+        "started_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "command_id": {
+          "$ref": "#/$defs/MessageId"
+        }
+      },
+      "required": [
+        "group_id",
+        "source",
+        "deadline",
+        "started_at"
+      ],
+      "additionalProperties": true
+    },
+    "Runtime": {
+      "type": "object",
+      "properties": {
+        "active_groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          },
+          "maxItems": 4
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Run"
+          },
+          "maxItems": 4
+        },
+        "controller_status": {
+          "$ref": "#/$defs/ControllerStatus"
+        }
+      },
+      "required": [
+        "active_groups"
+      ],
+      "additionalProperties": true
+    },
+    "AckResponse": {
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "type": "boolean"
+        },
+        "duplicate": {
+          "type": "boolean"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "applied_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "accepted"
+      ],
+      "additionalProperties": true
+    },
+    "Forwarding": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "pending",
+            "disabled",
+            "duplicate",
+            "dropped",
+            "loop_suppressed",
+            "local_outbox_suppressed",
+            "integration_events_suppressed"
+          ]
+        },
+        "message_id": {
+          "$ref": "#/$defs/MessageId"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "additionalProperties": true
+    },
+    "TelemetryAck": {
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "const": true
+        },
+        "message_id": {
+          "$ref": "#/$defs/MessageId"
+        },
+        "received_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "duplicate": {
+          "type": "boolean"
+        },
+        "forwarding": {
+          "$ref": "#/$defs/Forwarding"
+        }
+      },
+      "required": [
+        "accepted",
+        "message_id",
+        "received_at",
+        "duplicate"
+      ],
+      "additionalProperties": true
+    },
+    "Error": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "additionalProperties": true
+    }
+  }
+}

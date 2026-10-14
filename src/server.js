@@ -16,6 +16,7 @@ import {DeviceLifecycle} from './lifecycle.js';
 import {QueueManagement} from './queue-management.js';
 import {openVault,fieldContext} from './secrets.js';
 import {TelemetryForwarder} from './forwarding.js';
+import {assertContract,machineContract,CONTRACT_VERSION} from './contracts.js';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.ADMIN_PASSWORD||'admin-demo-2026',operatorPassword=process.env.OPERATOR_PASSWORD||'operador-demo-2026',allowLocalIntegrations=process.env.ALLOW_LOCAL_INTEGRATIONS==='1',transport,keyFile=process.env.VAULT_KEY_FILE,vaultRequired=process.env.VAULT_REQUIRED==='1'}={}){
  if(dbPath!==':memory:')mkdirSync(dirname(resolve(dbPath)),{recursive:true});const db=new DatabaseSync(dbPath);let vault;try{vault=openVault(db,{keyFile,required:vaultRequired});}catch(e){db.close();throw e;}
@@ -50,14 +51,15 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
  if(state.devices.some(d=>d.transport!=='http'&&Object.keys(d.active).length))mutate(()=>{for(const d of state.devices)if(d.transport!=='http'&&Object.keys(d.active).length)engine.reboot(d);});
  for(const d of state.devices)if(d.transport==='http')d.online=false;
  for(const d of state.devices)db.prepare("INSERT OR IGNORE INTO configuration_versions(device,revision,status,body,published_at,applied_at,error) VALUES(?,?,'applied',?,?,?,NULL)").run(d.guid,d.revision,JSON.stringify(d.config),new Date(state.now*1000).toISOString(),new Date(state.now*1000).toISOString());
- const publicFiles={'/':'index.html','/local':'index.html','/app.js':'app.js','/history-chart.js':'history-chart.js','/schedules.js':'schedules.js','/style.css':'style.css'};
+ const publicFiles={'/':'index.html','/local':'index.html','/app.js':'app.js','/history-chart.js':'history-chart.js','/schedules.js':'schedules.js','/schedule-editor.js':'schedule-editor.js','/command-state.js':'command-state.js','/style.css':'style.css'};
  const handler=async(req,res)=>{
   const send=(status,body)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(body));};
   try{
    const url=new URL(req.url,'http://localhost');const p=url.pathname;
    res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
    if(req.method==='GET'&&publicFiles[p]){res.setHeader('Content-Type',p.endsWith('.js')?'text/javascript; charset=utf-8':p.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8');res.end(readFileSync(resolve(root,'public',publicFiles[p])));return;}
-   if(req.method==='GET'&&p==='/health'){send(200,{ok:true,version:'0.12.1',simulated:true,secrets_protected:vault.encrypted});return;}
+   if(req.method==='GET'&&['/contracts/iot-v1.schema.json','/contracts/openapi.json'].includes(p)){res.setHeader('Content-Type',p.endsWith('schema.json')?'application/schema+json':'application/json');res.end(readFileSync(resolve(root,p.slice(1))));return;}
+   if(req.method==='GET'&&p==='/health'){send(200,{ok:true,version:'0.13.0',simulated:true,secrets_protected:vault.encrypted,protocol_version:1,contract_version:CONTRACT_VERSION});return;}
    if(req.method!=='GET'){
     if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host) {send(403,{error:'Origem não autorizada'});return;}}
     if(req.headers['content-type']?.split(';')[0]!=='application/json'){send(415,{error:'Envie application/json'});return;}
@@ -72,7 +74,7 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
     else if(req.method==='GET'&&p==='/iot/v1/commands')result=mutate(()=>protocol.commands(d));
     else if(req.method==='POST'&&p.match(/^\/iot\/v1\/commands\/[A-Za-z0-9_-]+\/events$/))result=mutate(()=>protocol.commandEvent(d,p.split('/')[4],body));
     else if(req.method==='POST'&&p==='/iot/v1/runtime')result=mutate(()=>protocol.runtime(d,body));
-    else {send(404,{error:'Rota inexistente'});return;}send(200,result);return;
+    else {send(404,{error:'Rota inexistente'});return;}assertContract(machineContract(p),result);send(200,result);return;
    }
    if(req.method==='POST'&&p==='/api/login'){
     const ip=req.socket.remoteAddress,entry=attempts.get(ip)||{count:0,until:Date.now()+60000};if(entry.until<Date.now()){entry.count=0;entry.until=Date.now()+60000;}attempts.set(ip,entry);if(entry.count>=10){send(429,{error:'Muitas tentativas; aguarde um minuto'});return;}

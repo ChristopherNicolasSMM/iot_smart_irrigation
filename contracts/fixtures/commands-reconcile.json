@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "device_guid": "97e157ec-93ab-4d4d-93c9-2ec7077746ec",
+  "commands": [
+    {
+      "command_id": "test-command",
+      "device_guid": "97e157ec-93ab-4d4d-93c9-2ec7077746ec",
+      "zone_id": "zone_1",
+      "group_id": "zone_1",
+      "actuator_id": "valve_1",
+      "action": "start",
+      "source": "test",
+      "duration_s": 5,
+      "configuration_revision": 1,
+      "issued_at": 1791795600,
+      "expires_at": 1791795630,
+      "reconcile_only": true,
+      "actor": "admin"
+    }
+  ],
+  "server_time": "2026-10-12T09:00:00Z"
+}

@@ -42,7 +42,9 @@
       "source": "hybrid",
       "occurrence_id": "schedule_1:r1:2026-10-12",
       "reason": "below_start_threshold",
-      "recorded_at": "2026-10-12T09:00:00Z"
+      "recorded_at": "2026-10-12T09:00:00Z",
+      "device_guid": "97e157ec-93ab-4d4d-93c9-2ec7077746ec",
+      "revision": 1
     }
   ]
 }

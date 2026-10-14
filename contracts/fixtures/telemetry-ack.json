@@ -1,0 +1,10 @@
+{
+  "accepted": true,
+  "message_id": "d9aa67d0-2784-4c26-8577-74c0515eeb94",
+  "received_at": "2026-10-12T09:00:00Z",
+  "duplicate": false,
+  "forwarding": {
+    "status": "pending",
+    "message_id": "forward-fixture"
+  }
+}

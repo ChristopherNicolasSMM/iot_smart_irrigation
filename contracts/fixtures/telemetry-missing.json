@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "message_id": "missing",
+  "device_guid": "97e157ec-93ab-4d4d-93c9-2ec7077746ec",
+  "boot_id": "d2d0d461-d3f8-49a1-a1f1-a88da87d56f1",
+  "sequence": 12,
+  "recorded_at": "2026-10-12T09:00:00Z",
+  "time_quality": "synchronized",
+  "configuration_revision": 1,
+  "simulated": true,
+  "readings": [
+    {
+      "component_id": "soil_1",
+      "metric": "soil_moisture",
+      "value": null,
+      "unit": "%relative",
+      "quality": "missing",
+      "recorded_at": "2026-10-12T09:00:00Z"
+    },
+    {
+      "component_id": "temp_1",
+      "metric": "soil_temperature",
+      "value": null,
+      "unit": "degC",
+      "quality": "missing",
+      "recorded_at": "2026-10-12T09:00:00Z"
+    }
+  ],
+  "outputs": [
+    {
+      "component_id": "valve_1",
+      "commanded_state": "on",
+      "feedback_kind": "electrical_output"
+    }
+  ],
+  "events": []
+}

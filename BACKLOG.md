@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 14/10/2026 · entrega v0.12.1. Fonte canônica das próximas entregas.
+Atualizado: 14/10/2026 · entrega v0.13.0. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -8,8 +8,8 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 
 | ID | Prioridade | Item | Status | Evidência / próxima ação |
 |---|---|---|---|---|
-| P0-01 | P0 | Validar visualmente portal, checkboxes e horários | A validar | v0.5 validada pelo usuário; controles v0.6–v0.10 e fluxo atual aguardam validação de uso na próxima entrega consolidada |
-| P0-02 | P0 | Políticas de tempo e recuperação | Entregue/testado nos cenários principais | Relógio monotônico, ajuste até 7 dias, falha de energia, DST comum; ampliar transições raras |
+| P0-01 | P0 | Validar visualmente portal, checkboxes e horários | Conferência automatizada entregue; revisão do usuário pendente | Chromium desktop/móvel, API/código e roteiro UI-01..UI-16; v0.12.1 validada no Windows, v0.13 aguarda confirmação local |
+| P0-02 | P0 | Políticas de tempo e recuperação | Entregue/testado nos cenários principais | Relógio monotônico, ajustes/falhas e cenários raros v0.13; recorte semanal da recuperação longa documentado |
 | P0-03 | P0 | Protocolo de dispositivo independente | Entregue/testado em software | Cliente HTTP separado, config/hash/ACK, comandos, expiração, reconciliação; hardware posterior |
 | P0-04 | P0 | Conflitos, simultaneidade e duração máxima | Entregue/testado em software | Bloqueio/log e avisos prévios v0.6; análise temporal delimitada em VALIDACAO_V06.md |
 | P0-05 | P0 | Conjunto por solenoide com umidade/temperatura/área e agenda própria | Entregue/testado | zones/zone_id preservados; até 4 conjuntos, 1 solenoide por conjunto |
@@ -28,9 +28,9 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 | P1-07 | P1 | Ensaio prolongado, desempenho e refatoração | Entregue no ensaio delimitado v0.12; alerta nativo a reproduzir | 300 s de carga + 7 dias virtuais, métricas/filas/integridade e módulos separados; validação prolongada real posterior |
 | P1-08 | P1 | Avisos prévios de sobreposição e limites hidráulicos | Parcial: software entregue v0.6 | Editor identifica sobreposição/capacidade; dimensionamento hidráulico depende de HW-01 |
 | P1-09 | P1 | Calibração e tratamento de dados do sensor | Hardware a definir | Unidade relativa/volumétrica correta, qualidade e calibração explícitas |
-| P1-10 | P1 | Expandir testes temporais raros e recuperação longa | P0-02 | Transições além do DST comum e reconciliação após longas paradas |
+| P1-10 | P1 | Expandir testes temporais raros e recuperação longa | Entregue/testado nos cenários delimitados v0.13 | Lord Howe, Chatham, Apia, meia-noite, 90 dias e cliente persistido; semanal limitado a 7 dias com resumo explícito |
 | P1-11 | P1 | Encaminhamento/integração dos dados do cliente HTTP para terceiros | Entregue/testado v0.12 | Perfil por GUID, IDs estáveis/origem, rastros de salto, deduplicação/rollback e controle independente |
-| P1-12 | P1 | Consolidar schemas/OpenAPI e contrato versionado | P0-03 | Fixtures comuns para portal, cliente e futuro firmware |
+| P1-12 | P1 | Consolidar schemas/OpenAPI e contrato versionado | Entregue/testado v0.13 | JSON Schema/OpenAPI de máquina, 26 fixtures, validação compartilhada/hash e exemplos executáveis; API humana no manual |
 
 ## Firmware e hardware — após fechamento do piloto
 
@@ -56,11 +56,11 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 - Histórico a cada 900 s; eventos imediatos. Fila configurável; retenção manual auditada de conteúdo no portal, sem limpeza automática/local do cliente.
 - Implementação de portal/clientes é simulada; nenhuma solenoide física é acionada pelo Node.
 
-## Duas entregas consolidadas aprovadas
+## Duas entregas consolidadas
 
-1. **Entrega atual v0.12 — etapas 1 a 3:** P1-06 proteção/recuperação, P1-07 estabilidade/desempenho no ensaio delimitado e P1-11 encaminhamento HTTP. Detalhes e limites em docs/VALIDACAO_V012.md. Alerta nativo de encerramento do ensaio longo registrado para reprodução; código 0 e asserções aprovadas, sem afirmar ensaio livre de alertas.
-2. **Próxima entrega — etapas 4 a 6:** P1-12 schemas/OpenAPI/fixtures, P1-10 testes temporais raros/longas paradas e P0-01 conferência de uso/roteiro de validação do portal. Não implementadas antecipadamente nesta v0.12.
-3. **Depois das duas entregas:** avaliação conjunta, escolha/aprovação de hardware HW-01, medidas/limites HW-02 e preparação para firmware. Validação visual final do usuário e ensaio prolongado real na hospedagem não são substituídos por testes de software.
+1. **v0.12/v0.12.1 — etapas 1 a 3:** proteção/recuperação P1-06, ensaio delimitado P1-07 e encaminhamento P1-11. Usuário confirmou v0.12.1 no Windows em 14/10/2026. Alerta nativo do ensaio longo v0.12 ainda a reproduzir/avaliar na hospedagem.
+2. **v0.13 — etapas 4 a 6:** contrato P1-12 e tempo/recuperação P1-10 implementados/testados; portal conferido em Chromium desktop/móvel e API/código, com roteiro manual. Não equivale à confirmação desta versão no Windows ou bancada.
+3. **Próxima sequência:** revisão conjunta, HW-01/HW-02 e preparação do ESP32 conforme docs/PREPARACAO_ESP32.md. Firmar lista/pinagem/limites antes de FW-01; compilar e validar fisicamente em FW-02.
 
 ## Evidência da v0.6
 
@@ -92,7 +92,11 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 
 ## Correção v0.12.1 — validação Windows
 
-Retorno do usuário na v0.12: 209 aprovados e 6 falhas no Windows. Cinco ocorreram na limpeza de temporários antes de fechar SQLite (EBUSY); sexta na expectativa de confirmação imediata após reconexão. Corrigida ordem de cleanup, poll explícito serializa ciclo ocupado e executa ciclo novo, timer não acumula chamadas, fechamento aguarda trabalho em andamento. Teste de reconexão injeta uma falha transitória e verifica ACK em até três ciclos sem perder registros. 217 testes aprovados no ambiente Linux desta entrega e guardas de regressão; confirmação da v0.12.1 no Windows aguarda usuário. Não alterar dados ou esquemas. Etapas 4–6 permanecem próximas; ver docs/CORRECAO_V0121.md.
+Retorno do usuário na v0.12: 209 aprovados e 6 falhas no Windows. Cinco ocorreram na limpeza de temporários antes de fechar SQLite (EBUSY); sexta na expectativa de confirmação imediata após reconexão. Corrigida ordem de cleanup, poll explícito serializa ciclo ocupado e executa ciclo novo, timer não acumula chamadas, fechamento aguarda trabalho em andamento. Teste de reconexão injeta uma falha transitória e verifica ACK em até três ciclos sem perder registros. 217 testes aprovados no ambiente Linux desta entrega e guardas de regressão; usuário confirmou a v0.12.1 no Windows em 14/10/2026. Não alterar dados ou esquemas. Etapas 4–6 foram consolidadas na v0.13; ver docs/CORRECAO_V0121.md e docs/VALIDACAO_V013.md.
+
+## Evidência da v0.13
+
+269 testes aprovados, sintaxe e contracts:check; 26 fixtures e schema também verificados em validador independente 2020-12 com formato habilitado. Cliente confere hash antes de aplicar configuração; legado de protocolo/agenda preservado. Data inexistente inteira e datas específicas antigas em interrupção longa tratadas sem acionamento tardio; weekly continua com recorte explícito de 7 dias. Conferência real Chromium 153, desktop 1366×900 e móvel 390×844, sem exceções JS/overflow; corrigiu logout GET→POST, resposta atrasada de sessão, resultado de comando interno e IDs padrão repetidos. Registro em docs/benchmarks/V013_UI.json e roteiro em docs/ROTEIRO_PORTAL_V013.md. Sem migração de banco, nova dependência runtime ou validação física. Confirmar v0.13 no ambiente do usuário antes da avaliação HW-01/HW-02.
 
 ## Política de atualização
 
