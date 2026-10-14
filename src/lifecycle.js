@@ -25,7 +25,7 @@ export class DeviceLifecycle {
   }
   d.archived=true;d.archived_at=new Date().toISOString();d.online=false;
   this.db.prepare('DELETE FROM device_credentials WHERE device=?').run(d.guid);
-  const cancelled=this.db.prepare("UPDATE outbox SET status='cancelled',error='device_archived' WHERE device=? AND status='pending'").run(d.guid).changes;
+  const cancelled=this.db.prepare("UPDATE outbox SET status='cancelled',error='device_archived',finished_at=CAST(strftime('%s','now') AS INTEGER)*1000 WHERE device=? AND status='pending'").run(d.guid).changes;
   d.integration??=defaultProfile();d.integration.enabled=false;this.audit(d,actor,'archived',{cancelled_messages:cancelled});engine.event(d,'device_archived','credentials_revoked',{actor,source:'lifecycle',recorded_at:new Date().toISOString()});return {guid:d.guid,archived:true,cancelled_messages:cancelled};
  }
  disabledConfig(d){const c=structuredClone(d.config);for(const x of c.components)if(x.kind==='irrigation_actuator')x.enabled=false;for(const s of c.schedules)s.enabled=false;return c;}

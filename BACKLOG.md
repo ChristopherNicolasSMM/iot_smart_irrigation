@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 14/10/2026 · entrega v0.9.0. Fonte canônica das próximas entregas.
+Atualizado: 14/10/2026 · entrega v0.10.0. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -8,7 +8,7 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 
 | ID | Prioridade | Item | Status | Evidência / próxima ação |
 |---|---|---|---|---|
-| P0-01 | P0 | Validar visualmente portal, checkboxes e horários | A validar | v0.5 validada pelo usuário; controles novos v0.6–v0.9 aguardam validação de uso |
+| P0-01 | P0 | Validar visualmente portal, checkboxes e horários | A validar | v0.5 validada pelo usuário; controles novos v0.6–v0.10 aguardam validação de uso |
 | P0-02 | P0 | Políticas de tempo e recuperação | Entregue/testado nos cenários principais | Relógio monotônico, ajuste até 7 dias, falha de energia, DST comum; ampliar transições raras |
 | P0-03 | P0 | Protocolo de dispositivo independente | Entregue/testado em software | Cliente HTTP separado, config/hash/ACK, comandos, expiração, reconciliação; hardware posterior |
 | P0-04 | P0 | Conflitos, simultaneidade e duração máxima | Entregue/testado em software | Bloqueio/log e avisos prévios v0.6; análise temporal delimitada em VALIDACAO_V06.md |
@@ -23,7 +23,7 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 | P1-02 | P1 | Desativar/arquivar dispositivos e transferir propriedade | Entregue/testado v0.9 | GUID/histórico preservados e separados por propriedade; arquivo/restauração, revogação, auditoria e migração |
 | P1-03 | P1 | Diagnóstico de comunicação/leitura e próxima execução por conjunto | Entregue/testado v0.7 | Última comunicação, idade/fonte/qualidade, motivos, pausa e previsão por conjunto; limites em VALIDACAO_V07.md |
 | P1-04 | P1 | Histórico com filtros, todos os sensores e exportação | Entregue/testado v0.8 | Período/sensor/conjunto/qualidade/tipo, gráficos, paginação e CSV/JSON; contexto legado desconhecido preservado |
-| P1-05 | P1 | Fila: cancelamento, reprocessamento e retenção | Envio HTTP | Limpeza auditada sem apagar pendências silenciosamente |
+| P1-05 | P1 | Fila: cancelamento, reprocessamento e retenção | Entregue/testado v0.10 no portal | Cancelar/reprocessar com ID e total preservados; retenção manual com prévia/limites/auditoria, sem apagar pendências |
 | P1-06 | P1 | Backup/restauração e proteção de segredos | SQLite e contas | Recuperação demonstrada; definir encriptação/gestão de chave para produção |
 | P1-07 | P1 | Ensaio prolongado, desempenho e refatoração | Portal/cliente separados | Teste de estabilidade, limites medidos, módulos legíveis |
 | P1-08 | P1 | Avisos prévios de sobreposição e limites hidráulicos | Parcial: software entregue v0.6 | Editor identifica sobreposição/capacidade; dimensionamento hidráulico depende de HW-01 |
@@ -53,14 +53,14 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 - Simultaneidade: padrão 1, configurável até 4 no piloto; dimensionamento físico pendente.
 - Teste: padrão 5 s, máximo 30 s e nunca acima do limite do conjunto.
 - Portal piloto: Node 24+, SQLite e HTML/CSS/JS; produção ainda em avaliação.
-- Histórico a cada 900 s; eventos imediatos. Fila configurável, retenção ainda pendente.
+- Histórico a cada 900 s; eventos imediatos. Fila configurável; retenção manual auditada de conteúdo no portal, sem limpeza automática/local do cliente.
 - Implementação de portal/clientes é simulada; nenhuma solenoide física é acionada pelo Node.
 
 ## Sequência recomendada
 
-1. Validar controles da v0.6–v0.9; v0.5 confirmada pelo usuário.
-2. Gestão de fila/cancelamento/reprocessamento/retenção P1-05.
-3. Segredos, backup, estabilidade e contrato definitivo.
+1. Validar controles da v0.6–v0.10; v0.5 confirmada pelo usuário.
+2. Backup/restauração e proteção de segredos P1-06.
+3. Estabilidade/desempenho P1-07, encaminhamento HTTP P1-11 e contrato definitivo P1-12.
 4. Avaliação de hardware, firmware e validação física.
 
 ## Evidência da v0.6
@@ -78,6 +78,10 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 ## Evidência da v0.9
 
 164 testes aprovados; migração incremental de propriedade nos registros, sem apagar dados ou alterar IDs/corpos existentes. HTTP exige configuração desabilitada aplicada e runtime ocioso recente antes de arquivar; arquivo não equivale a desligamento físico. Transferência chega arquivada, exige novo provisionamento e mantém registros anteriores na origem. Roteiro/limites em docs/VALIDACAO_V09.md. Sem nova validação visual automatizada/física.
+
+## Evidência da v0.10
+
+184 testes aprovados; migração preserva IDs, payloads e tentativas, sem aplicar retenção. Gestão restrita a administradores/propriedade; reenvio preserva ID/conteúdo/perfil e respeita vínculo. Retenção manual tem prévia de 5 min, lotes até 5000 mensagens/16 MiB, remove só conteúdo terminal e conserva tombstones/auditoria. Sem limpeza automática, compactação ou gestão da fila local do cliente nesta entrega; ver docs/VALIDACAO_V010.md. Sem nova validação visual automatizada/física.
 
 ## Política de atualização
 

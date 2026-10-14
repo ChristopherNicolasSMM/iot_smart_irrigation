@@ -13,6 +13,7 @@ import { scheduleWarnings } from './schedule-warnings.js';
 import {deviceDiagnostics} from './diagnostics.js';
 import {queryHistory,historyCSV} from './history.js';
 import {DeviceLifecycle} from './lifecycle.js';
+import {QueueManagement} from './queue-management.js';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.ADMIN_PASSWORD||'admin-demo-2026',operatorPassword=process.env.OPERATOR_PASSWORD||'operador-demo-2026',allowLocalIntegrations=process.env.ALLOW_LOCAL_INTEGRATIONS==='1',transport}={}){
  if(dbPath!==':memory:')mkdirSync(dirname(resolve(dbPath)),{recursive:true});const db=new DatabaseSync(dbPath);
@@ -34,12 +35,12 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
   const target=state.devices.find(d=>d.guid===event.device_guid);const profile=target?.integration||state.integration;
   if(outbox&&profile.enabled&&event.source!=='integration'){
    const d=target,message=envelope(d,event,state.now);
-   try{outbox.enqueue(d.guid,mappedPayload(profile,d,message),profile);}catch(e){integrationOutcome({device:d.guid,status:'dropped',message_id:message.message_id,attempts:0,reason:'template_invalid'});}
+   try{outbox.enqueue(d.guid,mappedPayload(profile,d,message),profile,{ownership_revision:d.ownership_start_revision||0});}catch(e){integrationOutcome({device:d.guid,status:'dropped',message_id:message.message_id,attempts:0,reason:'template_invalid'});}
   }
  });
  function integrationOutcome(e){db.prepare('INSERT INTO events(device,body) VALUES (?,?)').run(e.device,JSON.stringify({event_id:randomUUID(),device_guid:e.device,recorded_at:new Date(state.now*1000).toISOString(),received_at:new Date().toISOString(),kind:'integration_'+e.status,reason:e.reason,message_id:e.message_id,attempts:e.attempts,source:'integration',simulated:true}));}
- outbox=new Outbox(db,{transport,allowLocal:allowLocalIntegrations,online:guid=>{const d=state.devices.find(d=>d.guid===guid);return d?.online&&!d.archived;},onOutcome:integrationOutcome});
- const protocol=new DeviceProtocol(db,engine);lifecycle=new DeviceLifecycle(db,state);
+ outbox=new Outbox(db,{transport,allowLocal:allowLocalIntegrations,online:(guid,row)=>{const d=state.devices.find(d=>d.guid===guid);return d?.online&&!d.archived&&(!row.property_id||row.property_id===d.property_id);},onOutcome:integrationOutcome});
+ const protocol=new DeviceProtocol(db,engine);lifecycle=new DeviceLifecycle(db,state);const queueManager=new QueueManagement(db,outbox);
  const save=()=>db.prepare('INSERT INTO state(id,body) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(JSON.stringify(state));
  function mutate(fn){const previous=structuredClone(state);db.exec('BEGIN');try{const result=fn();save();db.exec('COMMIT');return result;}catch(e){db.exec('ROLLBACK');state=previous;engine.s=state;throw e;}}
  if(!db.prepare('SELECT body FROM state WHERE id=1').get())mutate(()=>{const config=properties.bind(demoConfig(),'property-default'),d=engine.add(config,'97e157ec-93ab-4d4d-93c9-2ec7077746ec',{property_id:'property-default'});d.property_id='property-default';d.area_id=config.area_id;});
@@ -54,7 +55,7 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
    const url=new URL(req.url,'http://localhost');const p=url.pathname;
    res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
    if(req.method==='GET'&&publicFiles[p]){res.setHeader('Content-Type',p.endsWith('.js')?'text/javascript; charset=utf-8':p.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8');res.end(readFileSync(resolve(root,'public',publicFiles[p])));return;}
-   if(req.method==='GET'&&p==='/health'){send(200,{ok:true,version:'0.9.0',simulated:true});return;}
+   if(req.method==='GET'&&p==='/health'){send(200,{ok:true,version:'0.10.0',simulated:true});return;}
    if(req.method!=='GET'){
     if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host) {send(403,{error:'Origem não autorizada'});return;}}
     if(req.headers['content-type']?.split(';')[0]!=='application/json'){send(415,{error:'Envie application/json'});return;}
@@ -98,14 +99,21 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
    }
    if(req.method==='GET'&&p==='/api/configurations'){const d=historyDeviceByGuid(url.searchParams.get('guid'));send(200,db.prepare('SELECT revision,status,published_at,applied_at,error FROM configuration_versions WHERE device=? AND property_id=? ORDER BY revision DESC LIMIT 100').all(d.guid,scope.property.id));return;}
    if(req.method==='GET'&&p==='/api/commands'){send(200,protocol.statuses(historyDeviceByGuid(url.searchParams.get('guid')),scope.property.id));return;}
+   if(req.method==='GET'&&p==='/api/outbox/query'){const d=historyDeviceByGuid(url.searchParams.get('guid'));send(200,queueManager.query(d,scope.property.id,url.searchParams));return;}
+   if(req.method==='GET'&&p==='/api/outbox/summary'){const d=historyDeviceByGuid(url.searchParams.get('guid'));send(200,queueManager.summary(d,scope.property.id));return;}
+   if(req.method==='GET'&&p==='/api/outbox/audit'){const d=historyDeviceByGuid(url.searchParams.get('guid'));send(200,queueManager.history(d,scope.property.id));return;}
    if(req.method==='GET'&&p==='/api/outbox'){const guid=url.searchParams.get('guid');send(200,guid?outbox.list(historyDeviceByGuid(guid).guid,scope.property.id):authorized().flatMap(d=>outbox.list(d.guid,scope.property.id)).sort((a,b)=>b.created_at-a.created_at).slice(0,100));return;}
    if(req.method!=='POST'){send(404,{error:'Rota inexistente'});return;}
-   const adminOnly=['/api/device/archive','/api/device/restore','/api/device/transfer','/api/config','/api/config/check','/api/device','/api/simulation','/api/sensor','/api/network','/api/reboot','/api/integration','/api/integration/test','/api/device/credential','/api/area','/api/clock','/api/clock-valid','/api/power','/api/device/transport'];
+   const adminOnly=['/api/outbox/cancel','/api/outbox/reprocess','/api/outbox/retention/preview','/api/outbox/retention/apply','/api/device/archive','/api/device/restore','/api/device/transfer','/api/config','/api/config/check','/api/device','/api/simulation','/api/sensor','/api/network','/api/reboot','/api/integration','/api/integration/test','/api/device/credential','/api/area','/api/clock','/api/clock-valid','/api/power','/api/device/transport'];
    if(adminOnly.includes(p)&&scope.role!=='admin'){const d=authorized()[0];if(d)mutate(()=>engine.event(d,'rejected','permission_denied',{actor:session.username,route:p}));throw new AccessError('Somente administrador da propriedade',403);}
    if(['/api/simulation','/api/clock'].includes(p)&&!scope.system_admin)throw new AccessError('Relógio global: somente administrador do sistema',403);
    if(['/api/sensor','/api/network','/api/reboot','/api/clock-valid','/api/power'].includes(p)&&device().transport==='http')throw new ValidationError('Ação disponível somente no simulador interno');
    let result;
    if(p==='/api/device')result=mutate(()=>{const config=properties.bind(body.config,scope.property.id),d=engine.add(config,randomUUID(),{property_id:scope.property.id});d.property_id=scope.property.id;d.area_id=config.area_id;d.integration=defaultProfile();db.prepare("INSERT INTO configuration_versions(device,revision,status,body,published_at,applied_at,error) VALUES(?,?,'applied',?,?,?,NULL)").run(d.guid,d.revision,JSON.stringify(d.config),new Date(state.now*1000).toISOString(),new Date(state.now*1000).toISOString());return d;});
+   else if(p==='/api/outbox/cancel')result=mutate(()=>queueManager.cancel(historyDeviceByGuid(body.guid),scope.property.id,session.username,body));
+   else if(p==='/api/outbox/reprocess')result=mutate(()=>{const d=device();return queueManager.reprocess(d,scope.property.id,session.username,body,d.integration||state.integration);});
+   else if(p==='/api/outbox/retention/preview')result=queueManager.preview(historyDeviceByGuid(body.guid),scope.property.id,session.username,body);
+   else if(p==='/api/outbox/retention/apply')result=mutate(()=>queueManager.retain(historyDeviceByGuid(body.guid),scope.property.id,session.username,body));
    else if(p==='/api/device/archive')result=mutate(()=>lifecycle.archive(deviceByGuid(body.guid),session.username,engine));
    else if(p==='/api/device/restore')result=mutate(()=>lifecycle.restore(deviceByGuid(body.guid),session.username,engine));
    else if(p==='/api/device/transfer')result=mutate(()=>lifecycle.transfer(deviceByGuid(body.guid),session,body,properties,engine));
@@ -118,7 +126,7 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
    else if(p==='/api/reboot')result=mutate(()=>{engine.reboot(device());return {ok:true};});
    else if(p==='/api/integration')result=mutate(()=>{const profile=normalizeProfile(body.integration);if(profile.url.startsWith('http:')&&!allowLocalIntegrations)throw new ValidationError('HTTP local requer ALLOW_LOCAL_INTEGRATIONS=1');const d=body.guid?device():authorized()[0];if(!d||d.archived)throw new ValidationError('Selecione um dispositivo ativo');if(body.headers!==undefined)outbox.setHeaders(body.headers,d.guid);d.integration=profile;return {ok:true};});
    else if(p==='/api/integration/preview'){const d=device(),profile=d.integration||state.integration,message=envelope(d,{sample:true},state.now);message.message_id='preview-message';result={simulated:true,request:{url:profile.url,method:profile.method,body:mappedPayload(profile,d,message)},note:'Prévia apenas. Nenhuma requisição externa foi enviada.'};}
-   else if(p==='/api/integration/test')result=mutate(()=>{const d=device(),profile=d.integration||state.integration;if(!profile.url)throw new ValidationError('Configure uma URL');const message=envelope(d,{sample:true},state.now),payload=mappedPayload(profile,d,message);const queued=outbox.enqueue(d.guid,payload,profile);return {message_id:message.message_id,status:queued?'pending':'dropped'};});
+   else if(p==='/api/integration/test')result=mutate(()=>{const d=device(),profile=d.integration||state.integration;if(!profile.url)throw new ValidationError('Configure uma URL');const message=envelope(d,{sample:true},state.now),payload=mappedPayload(profile,d,message);const queued=outbox.enqueue(d.guid,payload,profile,{ownership_revision:d.ownership_start_revision||0});return {message_id:message.message_id,status:queued?'pending':'dropped'};});
    else if(p==='/api/device/credential')result=mutate(()=>{const d=device(),token=randomBytes(32).toString('base64url');db.prepare('INSERT INTO device_credentials VALUES(?,?) ON CONFLICT(device) DO UPDATE SET hash=excluded.hash').run(d.guid,tokenHash(token));engine.event(d,'credential_rotated','previous_token_revoked',{actor:session.username});return {guid:d.guid,token,note:'Exibido uma vez. O token anterior foi revogado.'};});
    else if(p==='/api/clock')result=mutate(()=>{engine.setClock(body.now);return {ok:true,now:state.now};});
    else if(p==='/api/clock-valid')result=mutate(()=>{engine.clockValid(device(),body.valid);return {ok:true};});

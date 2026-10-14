@@ -52,22 +52,25 @@ export class Outbox {
  constructor(db,{transport=requestJSON,allowLocal=false,online=()=>true,onOutcome=()=>{},now=()=>Date.now()}={}){
   Object.assign(this,{db,transport,allowLocal,online,onOutcome,now,busy:false,closed:false});
   db.exec(`CREATE TABLE IF NOT EXISTS outbox(id TEXT PRIMARY KEY,device TEXT,body TEXT NOT NULL,profile TEXT NOT NULL,headers TEXT NOT NULL,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,next_at INTEGER NOT NULL,error TEXT,created_at INTEGER NOT NULL,delivered_at INTEGER); CREATE INDEX IF NOT EXISTS outbox_ready ON outbox(status,next_at); CREATE TABLE IF NOT EXISTS integration_headers(device TEXT PRIMARY KEY,body TEXT NOT NULL);`);
+  const oldColumns=db.prepare('PRAGMA table_info(outbox)').all().map(c=>c.name);
+  for(const [name,definition] of [['cycle_attempts','INTEGER NOT NULL DEFAULT 0'],['reprocess_count','INTEGER NOT NULL DEFAULT 0'],['finished_at','INTEGER'],['retained','INTEGER NOT NULL DEFAULT 0'],['ownership_revision','INTEGER']])if(!oldColumns.includes(name))db.exec(`ALTER TABLE outbox ADD COLUMN ${name} ${definition}`);
+  if(!oldColumns.includes('cycle_attempts'))db.exec('UPDATE outbox SET cycle_attempts=attempts');
   db.prepare("UPDATE outbox SET status='pending' WHERE status='sending'").run();
  }
  getHeaders(device){return JSON.parse(this.db.prepare('SELECT body FROM integration_headers WHERE device=?').get(device)?.body||'{}');}
  setHeaders(headers,device){this.db.prepare('INSERT INTO integration_headers VALUES(?,?) ON CONFLICT(device) DO UPDATE SET body=excluded.body').run(device,JSON.stringify(validateHeaders(headers)));}
- enqueue(device,payload,profile){
+ enqueue(device,payload,profile,context={}){
   const count=this.db.prepare("SELECT COUNT(*) AS n FROM outbox WHERE device=? AND status IN ('pending','sending')").get(device).n;
   if(count>=profile.queue_limit){this.onOutcome({device,message_id:payload.message_id,status:'dropped',attempts:0,reason:'queue_full'});return false;}
-  this.db.prepare('INSERT INTO outbox(id,device,body,profile,headers,status,next_at,created_at) VALUES(?,?,?,?,?,?,?,?)').run(payload.message_id,device,JSON.stringify(payload),JSON.stringify(profile),JSON.stringify(this.getHeaders(device)),'pending',this.now(),this.now());return true;
+  this.db.prepare('INSERT INTO outbox(id,device,body,profile,headers,status,next_at,created_at,ownership_revision) VALUES(?,?,?,?,?,?,?,?,?)').run(payload.message_id,device,JSON.stringify(payload),JSON.stringify(profile),JSON.stringify(this.getHeaders(device)),'pending',this.now(),this.now(),context.ownership_revision??0);return true;
  }
- list(guid,property){if(property)return this.db.prepare('SELECT id,device,status,attempts,next_at,error,created_at,delivered_at FROM outbox WHERE device=? AND property_id=? ORDER BY created_at DESC LIMIT 100').all(guid,property);const rows=guid?this.db.prepare('SELECT id,device,status,attempts,next_at,error,created_at,delivered_at FROM outbox WHERE device=? ORDER BY created_at DESC LIMIT 100').all(guid):this.db.prepare('SELECT id,device,status,attempts,next_at,error,created_at,delivered_at FROM outbox ORDER BY created_at DESC LIMIT 100').all();return rows;}
+ list(guid,property){if(property)return this.db.prepare('SELECT id,device,status,attempts,cycle_attempts,reprocess_count,next_at,error,created_at,delivered_at,finished_at,retained FROM outbox WHERE device=? AND property_id=? ORDER BY created_at DESC LIMIT 100').all(guid,property);const rows=guid?this.db.prepare('SELECT id,device,status,attempts,cycle_attempts,reprocess_count,next_at,error,created_at,delivered_at,finished_at,retained FROM outbox WHERE device=? ORDER BY created_at DESC LIMIT 100').all(guid):this.db.prepare('SELECT id,device,status,attempts,cycle_attempts,reprocess_count,next_at,error,created_at,delivered_at,finished_at,retained FROM outbox ORDER BY created_at DESC LIMIT 100').all();return rows;}
  async flush(){if(this.busy||this.closed)return;this.busy=true;try{
   const rows=this.db.prepare("SELECT * FROM outbox WHERE status='pending' AND next_at<=? ORDER BY created_at ").all(this.now());
-  const row=rows.find(r=>this.online(r.device));if(!row)return;
-  const p=JSON.parse(row.profile),payload=JSON.parse(row.body),headers=JSON.parse(row.headers);let reason,status='pending';const attempts=row.attempts+1;
-  if(row.attempts>=p.max_attempts){this.db.prepare("UPDATE outbox SET status='dead',error='attempt_budget_exhausted' WHERE id=?").run(row.id);this.onOutcome({device:row.device,message_id:row.id,status:'dead',attempts:row.attempts,reason:'attempt_budget_exhausted'});return;}
-  this.db.prepare("UPDATE outbox SET status='sending',attempts=? WHERE id=?").run(attempts,row.id);
+  const row=rows.find(r=>this.online(r.device,r));if(!row)return;
+  const p=JSON.parse(row.profile),payload=JSON.parse(row.body),headers=JSON.parse(row.headers);let reason,status='pending';const attempts=row.attempts+1,cycleAttempts=row.cycle_attempts+1;
+  if(row.cycle_attempts>=p.max_attempts){this.db.prepare("UPDATE outbox SET status='dead',error='attempt_budget_exhausted',finished_at=? WHERE id=?").run(this.now(),row.id);this.onOutcome({device:row.device,message_id:row.id,status:'dead',attempts:row.attempts,reason:'attempt_budget_exhausted'});return;}
+  this.db.prepare("UPDATE outbox SET status='sending',attempts=?,cycle_attempts=? WHERE id=?").run(attempts,cycleAttempts,row.id);
   try{const response=await this.transport(p,payload,headers,{allowLocal:this.allowLocal});
    if(!p.accepted_status.includes(response.status))reason='http_'+response.status;
    else if(p.require_ack&&valueAt(response.body,p.ack_path)!==true)reason='ack_invalid';
@@ -75,8 +78,8 @@ export class Outbox {
    else status='delivered';
   }catch(e){reason=['timeout','response_too_large','payload_too_large','https_required','private_destination_blocked'].includes(e.message)?e.message:'network_error';}
   if(this.closed)return;
-  if(reason&&(attempts>=p.max_attempts||['http_401','http_403','https_required','private_destination_blocked','payload_too_large'].includes(reason)))status='dead';
-  this.db.prepare('UPDATE outbox SET status=?,next_at=?,error=?,delivered_at=? WHERE id=?').run(status,this.now()+Math.min(60000,1000*2**attempts),reason||null,status==='delivered'?this.now():null,row.id);
+  if(reason&&(cycleAttempts>=p.max_attempts||['http_401','http_403','https_required','private_destination_blocked','payload_too_large'].includes(reason)))status='dead';
+  this.db.prepare('UPDATE outbox SET status=?,next_at=?,error=?,delivered_at=?,finished_at=? WHERE id=?').run(status,this.now()+Math.min(60000,1000*2**cycleAttempts),reason||null,status==='delivered'?this.now():null,['dead','delivered'].includes(status)?this.now():null,row.id);
   this.onOutcome({device:row.device,message_id:row.id,status,attempts,reason:reason||(p.require_ack?'application_ack':'http_status_only')});
  }finally{this.busy=false;}}
  close(){this.closed=true;}

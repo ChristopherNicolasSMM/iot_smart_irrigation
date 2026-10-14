@@ -165,3 +165,23 @@ Arquivo HTTP exige config_status applied, runtime ocioso até 90 s, solenoides/a
 Após transferência, telemetria exige configuration_revision igual ou superior à revisão inicial do novo vínculo; eventos também precisam de revisão desse vínculo. Pacotes anteriores retornam 400 e não são reatribuídos ao destino. IDs de comando usados em outro vínculo são indisponíveis; ACKs não acessam comandos da propriedade anterior.
 
 Migração: property_id em events/samples/configuration_versions/outbox/machine_commands; índices e triggers de atribuição; device_registry/device_transfers/device_audit. Histórico existente da v0.8 é atribuído à propriedade do GUID antes de habilitar transferências. Corpos/IDs preservados; órfãos não são atribuídos por adivinhação. Sem atualização destrutiva do banco. Procedimento e limites em VALIDACAO_V09.md.
+
+## Gestão da fila implementada na v0.10
+
+| Rota | Corpo/permissão/resultado |
+|---|---|
+| GET /api/outbox/query | guid obrigatório; status/before_id opcionais; sessão vinculada; página de 100 metadados e has_more/next_before_id |
+| GET /api/outbox/summary | guid; contagem por status/retained de toda a propriedade e automatic_retention=false |
+| GET /api/outbox/audit | guid; últimas 100 ações da propriedade, sem conteúdo/cabeçalhos |
+| POST /api/outbox/cancel | {guid,message_id}; administrador; somente pending, preserva conteúdo/ID |
+| POST /api/outbox/reprocess | {guid,message_id,use_current_headers?:boolean}; administrador; dead/cancelled do vínculo atual com conteúdo; mesmo ID/payload/perfil, novo budget de ciclo |
+| POST /api/outbox/retention/preview | {guid,days:1..3650}; administrador; prévia vinculada a GUID/ator/propriedade por 5 min |
+| POST /api/outbox/retention/apply | {guid,preview_id}; administrador; verifica candidatos e remove conteúdo terminal em transação auditada |
+
+Consulta aceita GUID histórico da propriedade, mas reprocessamento exige dispositivo atualmente vinculado/ativo e revisão de vínculo comprovada. 404 para GUID/mensagem não autorizado; 403 para operador em mutação; 400 para estado/opção/cursor/prévia inválidos, capacidade cheia, prévia alterada/expirada ou reenvio de vínculo anterior. Atualização de cabeçalhos exige igualdade exata entre URL capturada e atual; por padrão mantém autenticação original.
+
+/api/outbox antigo continua retornando array de até 100 metadados, acrescentando cycle_attempts/reprocess_count/finished_at/retained. Query acrescenta row_id e can_reprocess, sem payload/profile/headers. Estados: pending/sending/delivered/dead/cancelled; retained sinaliza conteúdo removido, não novo estado. attempts é cumulativo; cycle_attempts respeita orçamento do perfil original.
+
+Prévia retorna preview_id, expires_at, cutoff_before, candidates, has_more, by_status, estimated_bytes, batch_byte_limit (16777216), legacy_reference_count, sample_ids e protected_pending. Elegibilidade terminal usa finished_at → delivered_at → created_at quando ausente. Máximo 5000 mensagens/16 MiB por lote. Aplicação retorna retained, identifiers_preserved e pending_untouched; não elimina registros/IDs ou dados históricos de sensores/eventos. Legado sem término usa criação, explicitado na prévia. Não há job automático de retenção nesta versão.
+
+Migração: outbox acrescenta cycle_attempts/reprocess_count/finished_at/retained/ownership_revision e preserva conteúdo/ID/tentativas; queue_audit registra ator/propriedade/ID/ação/detalhe, incluindo checksum do payload retirado. Dados encerrados só são removidos mediante aplicação autorizada, nunca durante migração. Documentação/limites em VALIDACAO_V010.md.

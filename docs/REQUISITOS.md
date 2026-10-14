@@ -167,3 +167,7 @@ Consulta por período UTC (início inclusivo/fim exclusivo), sensor, conjunto, q
 ## Ciclo de vida — adendo v0.9
 
 Arquivar preserva GUID/histórico, bloqueia operação e revoga credencial; exige ociosidade e, no HTTP, configuração aplicada com acionamentos desabilitados e runtime recente. Restaurar mantém agendas/solenoides desabilitadas. Transferência exige administrador do sistema com acesso administrativo nas duas propriedades, mantém histórico anterior na origem e limpa segredos/caches atuais. Destino chega arquivado para novo provisionamento. Registro histórico tem propriedade imutável, independente da propriedade atual do GUID. Ver VALIDACAO_V09.md.
+
+## Gestão da fila — adendo v0.10
+
+Administrador pode cancelar mensagem pending e reprocessar dead/cancelled com conteúdo disponível do vínculo atual, preservando ID/payload e total de tentativas. Atualizar autenticação exige opção explícita e mesmo destino. Retenção manual usa prévia vinculada/expirável, conserva IDs/auditoria e não remove pendências ou histórico de irrigação. Receptor precisa deduplicar IDs; não prometer exatamente uma entrega sem esse contrato. Escopo/migração em VALIDACAO_V010.md.
