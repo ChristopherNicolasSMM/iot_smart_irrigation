@@ -159,3 +159,7 @@ Avisos antecipados de sobreposição por conjunto e disputa de simultaneidade s�
 ## Diagnóstico — adendo v0.7
 
 Portal deve distinguir idade/qualidade/fonte de leitura e condições conhecidas/desconhecidas do controle local. Previsão por conjunto usa revisão aplicada: estático prevê agenda, híbrido janela condicional e dinâmico não tem horário fixo. Relatório corrente do cliente HTTP é separado das amostras históricas de 15 minutos. Comunicação recente não torna atual uma leitura ou saída antiga. Escopo temporal e compatibilidade em VALIDACAO_V07.md.
+
+## Histórico — adendo v0.8
+
+Consulta por período UTC (início inclusivo/fim exclusivo), sensor, conjunto, qualidade e evento; amostras conservam contexto da revisão aplicada quando comprovado. Gráficos individuais de umidade/temperatura não convertem ausência em zero nem ligam grandes lacunas. Consulta paginada e fixa, exportação CSV/JSON dos resultados filtrados com limite explícito. Contexto legado desconhecido permanece indicado; API antiga preservada. Ver VALIDACAO_V08.md.

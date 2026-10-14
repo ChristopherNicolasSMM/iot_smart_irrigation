@@ -1,3 +1,4 @@
+import {historyContext,historySensors} from './history-context.js';
 import { localParts,resolveWindow } from './time.js';
 import { scheduleSlots } from '../public/schedules.js';
 import { randomUUID } from 'node:crypto';
@@ -90,7 +91,7 @@ export class Engine {
    }else{const eligible=z.mode==='dynamic'?[{key:`${z.id}:dynamic`,remaining:z.max_run_s}]:ws.filter(w=>w.inside&&!d.occurrences[w.key]);for(const w of eligible){if(!d.clock_valid){this.decide(d,z,w.key,'clock_invalid');continue;}if(!this.valid(d,z)){this.decide(d,z,w.key,'sensor_invalid');continue;}if(d.sensors[z.sensor_id].value>=z.start_below){this.decide(d,z,w.key,'moisture_sufficient');continue;}if(this.s.uptime-(d.last_stop_uptime?.[z.id]??-Infinity)<z.min_pause_s){this.decide(d,z,w.key,'cooldown');continue;}if(Object.keys(d.active).length>=d.config.max_simultaneous){this.decide(d,z,w.key,'simultaneous_limit');continue;}if(!d.config.components.find(c=>c.id===z.actuator_id)?.enabled){this.decide(d,z,w.key,'actuator_disabled');continue;}if(this.start(d,z,z.mode,Math.min(w.remaining,z.max_run_s),{occurrence_id:w.key})){if(z.mode==='hybrid')d.occurrences[w.key]=true;break;}}}
   }
   for(const [zid,a] of Object.entries(d.active))if(a.source==='hybrid'&&!windows.some(w=>w.key===a.occurrence_id&&w.inside))this.stop(d,d.config.zones.find(z=>z.id===zid),'window_closed');
-  if(this.s.uptime>=d.next_sample_uptime){this.emit({sample:true,device_guid:d.guid,recorded_at:new Date(this.s.now*1000).toISOString(),sensors:structuredClone(d.sensors),outputs:structuredClone(d.active),online:d.online,time_quality:d.clock_valid?'synchronized':'invalid',simulated:true});d.next_sample_uptime+=900;d.next_sample=this.s.now+900;}
+  if(this.s.uptime>=d.next_sample_uptime){this.emit({sample:true,device_guid:d.guid,revision:d.revision,...historyContext(d.config),recorded_at:new Date(this.s.now*1000).toISOString(),sensors:historySensors(d),outputs:structuredClone(d.active),online:d.online,time_quality:d.clock_valid?'synchronized':'invalid',simulated:true});d.next_sample_uptime+=900;d.next_sample=this.s.now+900;}
  }}
  advance(seconds){if(!Number.isInteger(seconds)||seconds<1||seconds>86400)fail('Avanço entre 1 e 86400 segundos');for(let i=0;i<seconds;i++)this.tick();}
  reboot(d){for(const z of d.config.zones)this.stop(d,z,'reboot');d.boot++;this.event(d,'interrupted','device_reboot');}

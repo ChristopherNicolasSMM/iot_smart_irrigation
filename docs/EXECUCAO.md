@@ -232,3 +232,7 @@ Com servidor parado, copiar o banco para backup, executar git pull --ff-only e n
 ## Atualização para v0.7
 
 Parar servidor e cliente independente, copiar bancos para backup e atualizar com git pull --ff-only. Reiniciar npm start e npm run client com os parâmetros existentes. Não apagar data/; não há migração de tabelas nesta versão. Visão geral apresenta diagnóstico e próxima agenda por conjunto. Sem cliente atualizado, condições do controlador HTTP ficam desconhecidas; runtime antigo continua aceito. Roteiro em VALIDACAO_V07.md.
+
+## Atualização para v0.8
+
+Com servidor/cliente parados, copiar bancos para backup e executar git pull --ff-only; reiniciar npm start e cliente independente, se usado. Não apagar data/. Sem migração de tabelas. Em Histórico, usar Consultar / atualizar para aplicar filtros e incluir novos registros; período em UTC, exibição no fuso do dispositivo. Exportação CSV/JSON usa filtros informados e todos os resultados até o limite documentado. Roteiro em VALIDACAO_V08.md.

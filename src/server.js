@@ -11,6 +11,7 @@ import { DeviceProtocol } from './protocol.js';
 import { Properties, AccessError } from './properties.js';
 import { scheduleWarnings } from './schedule-warnings.js';
 import {deviceDiagnostics} from './diagnostics.js';
+import {queryHistory,historyCSV} from './history.js';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.ADMIN_PASSWORD||'admin-demo-2026',operatorPassword=process.env.OPERATOR_PASSWORD||'operador-demo-2026',allowLocalIntegrations=process.env.ALLOW_LOCAL_INTEGRATIONS==='1',transport}={}){
  if(dbPath!==':memory:')mkdirSync(dirname(resolve(dbPath)),{recursive:true});const db=new DatabaseSync(dbPath);
@@ -44,14 +45,14 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
  if(state.devices.some(d=>d.transport!=='http'&&Object.keys(d.active).length))mutate(()=>{for(const d of state.devices)if(d.transport!=='http'&&Object.keys(d.active).length)engine.reboot(d);});
  for(const d of state.devices)if(d.transport==='http')d.online=false;
  for(const d of state.devices)db.prepare("INSERT OR IGNORE INTO configuration_versions VALUES(?,?,'applied',?,?,?,NULL)").run(d.guid,d.revision,JSON.stringify(d.config),new Date(state.now*1000).toISOString(),new Date(state.now*1000).toISOString());
- const publicFiles={'/':'index.html','/local':'index.html','/app.js':'app.js','/schedules.js':'schedules.js','/style.css':'style.css'};
+ const publicFiles={'/':'index.html','/local':'index.html','/app.js':'app.js','/history-chart.js':'history-chart.js','/schedules.js':'schedules.js','/style.css':'style.css'};
  const handler=async(req,res)=>{
   const send=(status,body)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(body));};
   try{
    const url=new URL(req.url,'http://localhost');const p=url.pathname;
    res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
    if(req.method==='GET'&&publicFiles[p]){res.setHeader('Content-Type',p.endsWith('.js')?'text/javascript; charset=utf-8':p.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8');res.end(readFileSync(resolve(root,'public',publicFiles[p])));return;}
-   if(req.method==='GET'&&p==='/health'){send(200,{ok:true,version:'0.7.0',simulated:true});return;}
+   if(req.method==='GET'&&p==='/health'){send(200,{ok:true,version:'0.8.0',simulated:true});return;}
    if(req.method!=='GET'){
     if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host) {send(403,{error:'Origem não autorizada'});return;}}
     if(req.headers['content-type']?.split(';')[0]!=='application/json'){send(415,{error:'Envie application/json'});return;}
@@ -84,6 +85,12 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
    if(req.method==='GET'&&p==='/api/properties'){send(200,properties.list(session.username));return;}
    if(req.method==='GET'&&p==='/api/members'){if(!scope.system_admin)throw new AccessError('Somente administrador do sistema',403);send(200,properties.members(scope.property.id));return;}
    if(req.method==='GET'&&['/api/events','/api/history'].includes(p)){const table=p==='/api/events'?'events':'samples',guid=url.searchParams.get('guid'),guids=guid?[deviceByGuid(guid).guid]:authorized().map(d=>d.guid);const rows=guids.length?db.prepare(`SELECT body FROM ${table} WHERE device IN (${guids.map(()=>'?').join(',')}) ORDER BY id DESC LIMIT 500`).all(...guids):[];send(200,rows.map(r=>JSON.parse(r.body)));return;}
+   if(req.method==='GET'&&['/api/history/query','/api/events/query','/api/history/export'].includes(p)){
+    const d=deviceByGuid(url.searchParams.get('guid')),exporting=p==='/api/history/export',type=exporting?(url.searchParams.get('type')||'readings'):p==='/api/events/query'?'events':'readings',format=url.searchParams.get('format')||'csv';
+    if(!['readings','events'].includes(type)||exporting&&!['csv','json'].includes(format))throw new ValidationError('Tipo/formato de exportação inválido');
+    const result=queryHistory(db,d,type,url.searchParams,{exporting});
+    if(exporting){res.setHeader('Content-Disposition',`attachment; filename=irrigation-${type}.${format}`);if(format==='csv'){res.writeHead(200,{'Content-Type':'text/csv; charset=utf-8','Cache-Control':'no-store'});res.end(historyCSV(result));}else send(200,result);}else send(200,result);return;
+   }
    if(req.method==='GET'&&p==='/api/configurations'){const d=deviceByGuid(url.searchParams.get('guid'));send(200,db.prepare('SELECT revision,status,published_at,applied_at,error FROM configuration_versions WHERE device=? ORDER BY revision DESC LIMIT 100').all(d.guid));return;}
    if(req.method==='GET'&&p==='/api/commands'){send(200,protocol.statuses(deviceByGuid(url.searchParams.get('guid'))));return;}
    if(req.method==='GET'&&p==='/api/outbox'){const guid=url.searchParams.get('guid');send(200,guid?outbox.list(deviceByGuid(guid).guid):authorized().flatMap(d=>outbox.list(d.guid)).sort((a,b)=>b.created_at-a.created_at).slice(0,100));return;}

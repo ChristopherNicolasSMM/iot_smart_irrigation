@@ -125,3 +125,23 @@ GET /api/diagnostics?guid=UUID exige sessão humana e vínculo com a propriedade
 POST /iot/v1/runtime permanece compatível: active_groups e runs existentes. Campo opcional controller_status: {revision,clock_valid,now,uptime,sensors:{component_id:{value,quality,updated_at?,updated_uptime?}},last_stop_uptime:{group_id:number},consumed_occurrences:[string]}. now/updated_at são segundos UTC do controlador; uptime/updated_uptime e last_stop_uptime são segundos monotônicos locais. Revisão deve corresponder à aplicada; leitura válida exige valor finito (umidade 0–100); IDs devem existir; tempos monotônicos não ultrapassam uptime. Relatórios inválidos retornam 400 sem alteração parcial.
 
 Até 8 sensores, 4 conjuntos, 512 IDs consumidos de até 300 caracteres; corpo limitado a 128 KB. Ausência do campo opcional remove relatório diagnóstico anterior, para não tratar cliente legado como atualizado. Atualização persiste estado JSON e horário de recebimento, sem inserir amostra histórica. Relatório confiável exige idade de recebimento até 90 s, dispositivo conectado e revisão correspondente; idade do sensor limita atualidade a 60 s. Runtime recente confirma somente estado de saída, independentemente de informar condições de controle. Limites/semântica completos em VALIDACAO_V07.md.
+
+## Histórico implementado na v0.8
+
+| Rota GET | Resultado |
+|---|---|
+| /api/history/query | Objeto paginado de leituras normalizadas |
+| /api/events/query | Objeto paginado de eventos com campos explícitos |
+| /api/history/export | Download CSV (padrão) ou JSON: type=readings/events, format=csv/json |
+
+Todas exigem guid e sessão humana autorizada à propriedade; operador/admin podem consultar/exportar. GUID não autorizado: 404; sessão ausente/revogada: 401. APIs antigas /api/history e /api/events continuam retornando arrays, com limite de 500 registros.
+
+Filtros opcionais: from/to em ISO com fuso explícito, normalizados UTC; início inclusivo/fim exclusivo pelo recorded_at do registro de coleta/evento. component_id e group_id combinados. quality=valid/invalid/stale/missing/disabled afeta leituras; kind afeta eventos. Sem metadados históricos de grupo, amostra não satisfaz filtro de grupo. Evento satisfaz sensor se registrar component_id/actuator_id/sensor_id/temperature_sensor_id. IDs removidos continuam consultáveis quando presentes no histórico.
+
+Paginação: limit=1..500 (padrão 200), before_id e snapshot_id inteiros positivos. Ordenação por ID de recebimento decrescente. Resposta: {schema_version:1,device_guid,type,filters,items,page:{records,has_more,next_before_id,snapshot_id},catalog:{components,groups,event_kinds},note}. Página limita registros de coleta, não a quantidade de leituras normalizadas. Próxima página deve usar next_before_id/snapshot_id e mesmos filtros. Novas chegadas não entram nesse snapshot.
+
+Leituras: record_id, device_guid, recorded_at, reading_at, received_at, configuration_revision, component_id/component_name, metric/unit, value (null quando ausente), quality, group_ids/group_names, context_known, online (boolean/null), simulated. Eventos: record_id, device_guid, recorded_at/received_at, configuration_revision, event_id, kind/reason, group_id/group_name, component_id, source/actor, command_id/occurrence_id, area_id/area_name, simulated. Dados de autenticação/integração não integram colunas exportadas.
+
+Exportação ignora limit e exporta toda consulta filtrada, até 5000 registros ou 20000 leituras. before_id não é aceito em exportação. Erro 400 se exceder, sem arquivo parcial; filtros/formato/paginação inválidos também retornam 400. CSV: Content-Type text/csv, UTF-8/BOM, separador ponto e vírgula, aspas escapadas e proteção de fórmula em textos; JSON inclui metadados da resposta e mantém texto original. Content-Disposition identifica download.
+
+Amostras internas novas acrescentam revision, components e groups no JSON persistido. Telemetria continua aceitando envelope anterior; configuration_revision opcional deve ser inteiro positivo. Revisão aplicada conhecida recupera metadados históricos da configuração; ausente/desconhecida mantém contexto não comprovado. Não altera tabelas nem reescreve registros legados. Preserva coleta a cada 900 s. Detalhes de uso/limites em VALIDACAO_V08.md.
