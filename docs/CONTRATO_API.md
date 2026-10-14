@@ -145,3 +145,23 @@ Leituras: record_id, device_guid, recorded_at, reading_at, received_at, configur
 Exportação ignora limit e exporta toda consulta filtrada, até 5000 registros ou 20000 leituras. before_id não é aceito em exportação. Erro 400 se exceder, sem arquivo parcial; filtros/formato/paginação inválidos também retornam 400. CSV: Content-Type text/csv, UTF-8/BOM, separador ponto e vírgula, aspas escapadas e proteção de fórmula em textos; JSON inclui metadados da resposta e mantém texto original. Content-Disposition identifica download.
 
 Amostras internas novas acrescentam revision, components e groups no JSON persistido. Telemetria continua aceitando envelope anterior; configuration_revision opcional deve ser inteiro positivo. Revisão aplicada conhecida recupera metadados históricos da configuração; ausente/desconhecida mantém contexto não comprovado. Não altera tabelas nem reescreve registros legados. Preserva coleta a cada 900 s. Detalhes de uso/limites em VALIDACAO_V08.md.
+
+## Ciclo de vida implementado na v0.9
+
+| Rota | Corpo/permissão/resultado |
+|---|---|
+| POST /api/device/archive | {guid}; administrador da origem, ociosidade comprovada; revoga token, cancela pendências de envio, marca arquivado |
+| POST /api/device/restore | {guid}; administrador atual; restaura com saídas/agendas desabilitadas (revisão HTTP pendente) |
+| POST /api/device/transfer | {guid,property_id,area_id}; administrador do sistema e das duas propriedades; exige arquivado; preserva GUID, chega arquivado ao destino |
+| GET /api/device/transfer-options | Administrador do sistema; destinos administrativos permitidos e suas áreas |
+| GET /api/device/audit?guid=UUID | Sessão autorizada ao histórico; últimas 100 ações da propriedade da consulta |
+
+GET /api/state acrescenta history_devices: {guid,name,timezone,archived,historical_only}. devices contém somente dispositivos atualmente vinculados à propriedade, incluindo arquivados. Arquivados bloqueiam APIs humanas de operação/configuração/credencial com 400 e APIs de máquina com 401; consulta de histórico permanece disponível.
+
+Histórico/query/exportação, endpoints antigos, catálogos, revisões, comandos, fila e auditoria usam property_id do registro. Na origem, GUID transferido permite consulta histórica, nunca comando/diagnóstico atual. Na transferência, credencial e cabeçalhos atuais são removidos; mensagens antigas permanecem canceladas/encerradas na origem. O destino não lê suas filas/comandos/revisões anteriores.
+
+Arquivo HTTP exige config_status applied, runtime ocioso até 90 s, solenoides/agendas desabilitadas e ausência de comandos solicitados/recebidos/iniciados/sem confirmação. Envios sending impedem operação de ciclo de vida. Transferência exige área válida do destino (404 caso não pertença); operação inválida retorna 400, perfil insuficiente 403. Todas as mutações são transacionais, com auditoria e eventos.
+
+Após transferência, telemetria exige configuration_revision igual ou superior à revisão inicial do novo vínculo; eventos também precisam de revisão desse vínculo. Pacotes anteriores retornam 400 e não são reatribuídos ao destino. IDs de comando usados em outro vínculo são indisponíveis; ACKs não acessam comandos da propriedade anterior.
+
+Migração: property_id em events/samples/configuration_versions/outbox/machine_commands; índices e triggers de atribuição; device_registry/device_transfers/device_audit. Histórico existente da v0.8 é atribuído à propriedade do GUID antes de habilitar transferências. Corpos/IDs preservados; órfãos não são atribuídos por adivinhação. Sem atualização destrutiva do banco. Procedimento e limites em VALIDACAO_V09.md.

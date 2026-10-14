@@ -61,7 +61,7 @@ export class Outbox {
   if(count>=profile.queue_limit){this.onOutcome({device,message_id:payload.message_id,status:'dropped',attempts:0,reason:'queue_full'});return false;}
   this.db.prepare('INSERT INTO outbox(id,device,body,profile,headers,status,next_at,created_at) VALUES(?,?,?,?,?,?,?,?)').run(payload.message_id,device,JSON.stringify(payload),JSON.stringify(profile),JSON.stringify(this.getHeaders(device)),'pending',this.now(),this.now());return true;
  }
- list(guid){const rows=guid?this.db.prepare('SELECT id,device,status,attempts,next_at,error,created_at,delivered_at FROM outbox WHERE device=? ORDER BY created_at DESC LIMIT 100').all(guid):this.db.prepare('SELECT id,device,status,attempts,next_at,error,created_at,delivered_at FROM outbox ORDER BY created_at DESC LIMIT 100').all();return rows;}
+ list(guid,property){if(property)return this.db.prepare('SELECT id,device,status,attempts,next_at,error,created_at,delivered_at FROM outbox WHERE device=? AND property_id=? ORDER BY created_at DESC LIMIT 100').all(guid,property);const rows=guid?this.db.prepare('SELECT id,device,status,attempts,next_at,error,created_at,delivered_at FROM outbox WHERE device=? ORDER BY created_at DESC LIMIT 100').all(guid):this.db.prepare('SELECT id,device,status,attempts,next_at,error,created_at,delivered_at FROM outbox ORDER BY created_at DESC LIMIT 100').all();return rows;}
  async flush(){if(this.busy||this.closed)return;this.busy=true;try{
   const rows=this.db.prepare("SELECT * FROM outbox WHERE status='pending' AND next_at<=? ORDER BY created_at ").all(this.now());
   const row=rows.find(r=>this.online(r.device));if(!row)return;

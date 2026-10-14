@@ -163,3 +163,7 @@ Portal deve distinguir idade/qualidade/fonte de leitura e condições conhecidas
 ## Histórico — adendo v0.8
 
 Consulta por período UTC (início inclusivo/fim exclusivo), sensor, conjunto, qualidade e evento; amostras conservam contexto da revisão aplicada quando comprovado. Gráficos individuais de umidade/temperatura não convertem ausência em zero nem ligam grandes lacunas. Consulta paginada e fixa, exportação CSV/JSON dos resultados filtrados com limite explícito. Contexto legado desconhecido permanece indicado; API antiga preservada. Ver VALIDACAO_V08.md.
+
+## Ciclo de vida — adendo v0.9
+
+Arquivar preserva GUID/histórico, bloqueia operação e revoga credencial; exige ociosidade e, no HTTP, configuração aplicada com acionamentos desabilitados e runtime recente. Restaurar mantém agendas/solenoides desabilitadas. Transferência exige administrador do sistema com acesso administrativo nas duas propriedades, mantém histórico anterior na origem e limpa segredos/caches atuais. Destino chega arquivado para novo provisionamento. Registro histórico tem propriedade imutável, independente da propriedade atual do GUID. Ver VALIDACAO_V09.md.

@@ -12,12 +12,12 @@ export function historyFilters(params){
 const effectiveQuality="CASE WHEN EXISTS(SELECT 1 FROM json_each(q.body,'$.components') c WHERE json_extract(c.value,'$.id')=r.key AND json_extract(c.value,'$.enabled')=0) THEN 'disabled' ELSE COALESCE(json_extract(r.value,'$.quality'),'missing') END";
 export function historyCatalog(db,d){
  const components=new Map(),groups=new Map();
- const configs=db.prepare('SELECT body FROM configuration_versions WHERE device=? ORDER BY revision').all(d.guid).map(r=>JSON.parse(r.body));configs.push(d.config);
+ const configs=db.prepare('SELECT body FROM configuration_versions WHERE device=?'+(d.history_property_id?' AND property_id=?':'')+' ORDER BY revision').all(d.guid,...(d.history_property_id?[d.history_property_id]:[])).map(r=>JSON.parse(r.body));configs.push(d.config);
  for(const c of configs){for(const x of c.components)if(x.kind!=='irrigation_actuator')components.set(x.id,{id:x.id,name:x.name,kind:x.kind});for(const z of c.zones)groups.set(z.id,{id:z.id,name:z.name});}
- for(const r of db.prepare("SELECT DISTINCT s.key AS id FROM samples q,json_each(q.body,'$.sensors') s WHERE q.device=?").all(d.guid))if(!components.has(r.id))components.set(r.id,{id:r.id,name:r.id,kind:'unknown'});
- return {components:[...components.values()],groups:[...groups.values()],event_kinds:db.prepare("SELECT DISTINCT json_extract(body,'$.kind') AS kind FROM events WHERE device=? ORDER BY kind").all(d.guid).map(r=>r.kind).filter(k=>typeof k==='string')};
+ for(const r of db.prepare("SELECT DISTINCT s.key AS id FROM samples q,json_each(q.body,'$.sensors') s WHERE q.device=?"+(d.history_property_id?' AND q.property_id=?':'')).all(d.guid,...(d.history_property_id?[d.history_property_id]:[])))if(!components.has(r.id))components.set(r.id,{id:r.id,name:r.id,kind:'unknown'});
+ return {components:[...components.values()],groups:[...groups.values()],event_kinds:db.prepare("SELECT DISTINCT json_extract(body,'$.kind') AS kind FROM events WHERE device=?"+(d.history_property_id?' AND property_id=?':'')+' ORDER BY kind').all(d.guid,...(d.history_property_id?[d.history_property_id]:[])).map(r=>r.kind).filter(k=>typeof k==='string')};
 }
-function sqlFilter(type,f){const clauses=['q.device=?'],args=[];
+function sqlFilter(type,f,property){const clauses=['q.device=?'],args=[];if(property){clauses.push('q.property_id=?');args.push(property);}
  for(const [key,op] of [['from','>='],['to','<']])if(f[key]){clauses.push(`julianday(json_extract(q.body,'$.recorded_at')) ${op} julianday(?)`);args.push(f[key]);}
  if(f.before_id){clauses.push('q.id<?');args.push(f.before_id);}if(f.snapshot_id){clauses.push('q.id<=?');args.push(f.snapshot_id);}
  if(type==='readings'){
@@ -45,8 +45,8 @@ export function queryHistory(db,d,type,params,{exporting=false}={}){
  if(!['readings','events'].includes(type))fail('Tipo de histórico inválido');
  if(exporting&&params.has('before_id'))fail('Exportação não aceita cursor de paginação. Use filtros de período.');
  const filters=historyFilters(params),table=type==='readings'?'samples':'events';
- if(!filters.snapshot_id)filters.snapshot_id=db.prepare(`SELECT MAX(id) AS id FROM ${table} WHERE device=?`).get(d.guid).id||null;
- const {where,args}=sqlFilter(type,filters),limit=exporting?5000:filters.limit;
+ if(!filters.snapshot_id)filters.snapshot_id=db.prepare(`SELECT MAX(id) AS id FROM ${table} WHERE device=?${d.history_property_id?' AND property_id=?':''}`).get(d.guid,...(d.history_property_id?[d.history_property_id]:[])).id||null;
+ const {where,args}=sqlFilter(type,filters,d.history_property_id),limit=exporting?5000:filters.limit;
  const rows=db.prepare(`SELECT q.id,q.device,q.body FROM ${table} q WHERE ${where} ORDER BY q.id DESC LIMIT ?`).all(d.guid,...args,limit+1);
  if(exporting&&rows.length>limit)fail('Exportação limitada a 5000 registros. Restrinja o período ou filtros.');
  const has_more=rows.length>limit,selected=rows.slice(0,limit),items=selected.flatMap(row=>historyItems(type,row,filters));

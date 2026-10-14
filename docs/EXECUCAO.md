@@ -236,3 +236,7 @@ Parar servidor e cliente independente, copiar bancos para backup e atualizar com
 ## Atualização para v0.8
 
 Com servidor/cliente parados, copiar bancos para backup e executar git pull --ff-only; reiniciar npm start e cliente independente, se usado. Não apagar data/. Sem migração de tabelas. Em Histórico, usar Consultar / atualizar para aplicar filtros e incluir novos registros; período em UTC, exibição no fuso do dispositivo. Exportação CSV/JSON usa filtros informados e todos os resultados até o limite documentado. Roteiro em VALIDACAO_V08.md.
+
+## Atualização para v0.9
+
+Parar servidor/cliente e copiar bancos para backup antes de git pull --ff-only; reiniciar npm start. Migração adiciona propriedade aos registros e tabelas de ciclo de vida sem apagar IDs/dados. Gerenciar dispositivo oferece arquivo/restauração/transferência. No HTTP, desabilitar/publicar saídas/agendas e confirmar ociosidade antes de arquivar. Após transferência, restaurar no destino e provisionar novo token e CLIENT_DB_PATH, preservando banco antigo; não reenviar fila anterior com credencial nova. Histórico possui seletor próprio para GUIDs transferidos. Roteiro em VALIDACAO_V09.md.

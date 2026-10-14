@@ -46,6 +46,7 @@ export function deviceDiagnostics(state,d,realNow=Date.now()/1000){
   const next=nextSchedule(d.config,z,scheduleNow,d.revision,consumed);
   let cooldown=null;
   if(authoritative&&z.mode!=='static'){const last=controller.last_stop_uptime?.[z.id];cooldown=Number.isFinite(last)?Math.max(0,z.min_pause_s-(controller.uptime-last)-(http?reportAge:0)):0;}
+  if(d.archived)reasons.push('device_archived');
   if(!http&&d.powered===false)reasons.push('device_powered_off');
   if(http&&!communication.online)reasons.push('device_offline');
   if(!authoritative)reasons.push('controller_status_unknown');
