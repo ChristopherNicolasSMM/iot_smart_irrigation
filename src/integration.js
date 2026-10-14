@@ -4,6 +4,7 @@ import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { ValidationError } from './engine.js';
+import {openVault,fieldContext} from './secrets.js';
 const fail = message => { throw new ValidationError(message); };
 const PATH = /^[a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*$/;
 const variable = /^\{\{([a-zA-Z0-9_.-]+)\}\}$/;
@@ -49,26 +50,30 @@ export async function requestJSON(profile,payload,headers,{allowLocal=false}={})
 }
 function valueAt(object,path){return path.split('.').reduce((v,k)=>v&&Object.hasOwn(v,k)?v[k]:undefined,object);}
 export class Outbox {
- constructor(db,{transport=requestJSON,allowLocal=false,online=()=>true,onOutcome=()=>{},now=()=>Date.now()}={}){
-  Object.assign(this,{db,transport,allowLocal,online,onOutcome,now,busy:false,closed:false});
-  db.exec(`CREATE TABLE IF NOT EXISTS outbox(id TEXT PRIMARY KEY,device TEXT,body TEXT NOT NULL,profile TEXT NOT NULL,headers TEXT NOT NULL,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,next_at INTEGER NOT NULL,error TEXT,created_at INTEGER NOT NULL,delivered_at INTEGER); CREATE INDEX IF NOT EXISTS outbox_ready ON outbox(status,next_at); CREATE TABLE IF NOT EXISTS integration_headers(device TEXT PRIMARY KEY,body TEXT NOT NULL);`);
+ constructor(db,{transport=requestJSON,allowLocal=false,online=()=>true,onOutcome=()=>{},now=()=>Date.now(),vault=openVault(db)}={}){
+  Object.assign(this,{db,vault,transport,allowLocal,online,onOutcome,now,busy:false,closed:false});
+  db.exec(`CREATE TABLE IF NOT EXISTS outbox(id TEXT PRIMARY KEY,device TEXT,body TEXT NOT NULL,profile TEXT NOT NULL,headers TEXT NOT NULL,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,next_at INTEGER NOT NULL,error TEXT,created_at INTEGER NOT NULL,delivered_at INTEGER); CREATE INDEX IF NOT EXISTS outbox_ready ON outbox(status,next_at); CREATE INDEX IF NOT EXISTS outbox_device_status ON outbox(device,status); CREATE TABLE IF NOT EXISTS integration_headers(device TEXT PRIMARY KEY,body TEXT NOT NULL);`);
   const oldColumns=db.prepare('PRAGMA table_info(outbox)').all().map(c=>c.name);
-  for(const [name,definition] of [['cycle_attempts','INTEGER NOT NULL DEFAULT 0'],['reprocess_count','INTEGER NOT NULL DEFAULT 0'],['finished_at','INTEGER'],['retained','INTEGER NOT NULL DEFAULT 0'],['ownership_revision','INTEGER']])if(!oldColumns.includes(name))db.exec(`ALTER TABLE outbox ADD COLUMN ${name} ${definition}`);
+  for(const [name,definition] of [['cycle_attempts','INTEGER NOT NULL DEFAULT 0'],['reprocess_count','INTEGER NOT NULL DEFAULT 0'],['finished_at','INTEGER'],['retained','INTEGER NOT NULL DEFAULT 0'],['ownership_revision','INTEGER'],['source_kind',"TEXT NOT NULL DEFAULT 'local'"]])if(!oldColumns.includes(name))db.exec(`ALTER TABLE outbox ADD COLUMN ${name} ${definition}`);
   if(!oldColumns.includes('cycle_attempts'))db.exec('UPDATE outbox SET cycle_attempts=attempts');
   db.prepare("UPDATE outbox SET status='pending' WHERE status='sending'").run();
  }
- getHeaders(device){return JSON.parse(this.db.prepare('SELECT body FROM integration_headers WHERE device=?').get(device)?.body||'{}');}
- setHeaders(headers,device){this.db.prepare('INSERT INTO integration_headers VALUES(?,?) ON CONFLICT(device) DO UPDATE SET body=excluded.body').run(device,JSON.stringify(validateHeaders(headers)));}
+ encode(table,id,text,column='body'){return this.vault.encode(text,fieldContext(table,id,column));}
+ decode(table,id,text,column='body'){return this.vault.decode(text,fieldContext(table,id,column));}
+ getHeaders(device){const row=this.db.prepare('SELECT body FROM integration_headers WHERE device=?').get(device);return row?JSON.parse(this.decode('integration_headers',device,row.body)):{};}
+ setHeaders(headers,device){this.db.prepare('INSERT INTO integration_headers VALUES(?,?) ON CONFLICT(device) DO UPDATE SET body=excluded.body').run(device,this.encode('integration_headers',device,JSON.stringify(validateHeaders(headers))));}
  enqueue(device,payload,profile,context={}){
   const count=this.db.prepare("SELECT COUNT(*) AS n FROM outbox WHERE device=? AND status IN ('pending','sending')").get(device).n;
   if(count>=profile.queue_limit){this.onOutcome({device,message_id:payload.message_id,status:'dropped',attempts:0,reason:'queue_full'});return false;}
-  this.db.prepare('INSERT INTO outbox(id,device,body,profile,headers,status,next_at,created_at,ownership_revision) VALUES(?,?,?,?,?,?,?,?,?)').run(payload.message_id,device,JSON.stringify(payload),JSON.stringify(profile),JSON.stringify(this.getHeaders(device)),'pending',this.now(),this.now(),context.ownership_revision??0);return true;
+  this.db.prepare('INSERT INTO outbox(id,device,body,profile,headers,status,next_at,created_at,ownership_revision,source_kind) VALUES(?,?,?,?,?,?,?,?,?,?)').run(payload.message_id,device,this.encode('outbox',payload.message_id,JSON.stringify(payload)),this.encode('outbox',payload.message_id,JSON.stringify(profile),'profile'),this.encode('outbox',payload.message_id,JSON.stringify(this.getHeaders(device)),'headers'),'pending',this.now(),this.now(),context.ownership_revision??0,context.source_kind==='http_ingest'?'http_ingest':'local');return true;
  }
  list(guid,property){if(property)return this.db.prepare('SELECT id,device,status,attempts,cycle_attempts,reprocess_count,next_at,error,created_at,delivered_at,finished_at,retained FROM outbox WHERE device=? AND property_id=? ORDER BY created_at DESC LIMIT 100').all(guid,property);const rows=guid?this.db.prepare('SELECT id,device,status,attempts,cycle_attempts,reprocess_count,next_at,error,created_at,delivered_at,finished_at,retained FROM outbox WHERE device=? ORDER BY created_at DESC LIMIT 100').all(guid):this.db.prepare('SELECT id,device,status,attempts,cycle_attempts,reprocess_count,next_at,error,created_at,delivered_at,finished_at,retained FROM outbox ORDER BY created_at DESC LIMIT 100').all();return rows;}
  async flush(){if(this.busy||this.closed)return;this.busy=true;try{
-  const rows=this.db.prepare("SELECT * FROM outbox WHERE status='pending' AND next_at<=? ORDER BY created_at ").all(this.now());
-  const row=rows.find(r=>this.online(r.device,r));if(!row)return;
-  const p=JSON.parse(row.profile),payload=JSON.parse(row.body),headers=JSON.parse(row.headers);let reason,status='pending';const attempts=row.attempts+1,cycleAttempts=row.cycle_attempts+1;
+  const scoped=this.db.prepare('PRAGMA table_info(outbox)').all().some(c=>c.name==='property_id');
+  const rows=this.db.prepare("SELECT id,device,source_kind"+(scoped?",property_id":"")+" FROM outbox WHERE status='pending' AND next_at<=? ORDER BY created_at ").all(this.now());
+  const candidate=rows.find(r=>this.online(r.device,r));if(!candidate)return;
+  const row=this.db.prepare('SELECT * FROM outbox WHERE id=?').get(candidate.id);
+  const p=JSON.parse(this.decode('outbox',row.id,row.profile,'profile')),payload=JSON.parse(this.decode('outbox',row.id,row.body)),headers=JSON.parse(this.decode('outbox',row.id,row.headers,'headers'));let reason,status='pending';const attempts=row.attempts+1,cycleAttempts=row.cycle_attempts+1;
   if(row.cycle_attempts>=p.max_attempts){this.db.prepare("UPDATE outbox SET status='dead',error='attempt_budget_exhausted',finished_at=? WHERE id=?").run(this.now(),row.id);this.onOutcome({device:row.device,message_id:row.id,status:'dead',attempts:row.attempts,reason:'attempt_budget_exhausted'});return;}
   this.db.prepare("UPDATE outbox SET status='sending',attempts=?,cycle_attempts=? WHERE id=?").run(attempts,cycleAttempts,row.id);
   try{const response=await this.transport(p,payload,headers,{allowLocal:this.allowLocal});
@@ -85,6 +90,6 @@ export class Outbox {
  close(){this.closed=true;}
 }
 export function envelope(d,event,now){const time=event.recorded_at||new Date(now*1000).toISOString();return {schema_version:1,message_id:event.message_id||randomUUID(),device_guid:d.guid,boot_id:`sim-boot-${d.boot}`,recorded_at:time,configuration_revision:d.revision,time_quality:d.clock_valid?'synchronized':'invalid',simulated:true,readings:event.sample?d.config.components.filter(c=>c.kind!=='irrigation_actuator').map(c=>({component_id:c.id,metric:c.kind,value:c.enabled&&d.sensors[c.id]?.quality==='valid'?d.sensors[c.id].value:null,quality:c.enabled?(d.sensors[c.id]?.quality||'missing'):'missing',unit:c.kind==='soil_moisture'?'%relative':'degC',recorded_at:time})):[],outputs:event.sample?d.config.components.filter(c=>c.kind==='irrigation_actuator').map(c=>({component_id:c.id,commanded_state:d.config.zones.some(z=>z.actuator_id===c.id&&d.active[z.id])?'on':'off',feedback_kind:'electrical_output'})):[],events:event.sample?[]:[event]};}
-export function mappedPayload(profile,d,message){const sensors={};for(const c of d.config.components.filter(c=>c.kind!=='irrigation_actuator'))sensors[c.id]={value:c.enabled&&d.sensors[c.id]?.quality==='valid'?d.sensors[c.id].value:null,quality:c.enabled?d.sensors[c.id]?.quality:'missing'};const payload=renderTemplate(profile.body,{device:{guid:d.guid,name:d.config.name,area:d.config.area},message:{...message,id:message.message_id},sensors});if(payload.message_id!==message.message_id)fail('Modelo deve preservar message_id no nível principal');return payload;}
+export function mappedPayload(profile,d,message,{received=false}={}){const sensors={};for(const c of d.config.components.filter(c=>c.kind!=='irrigation_actuator')){const reading=message.readings?.find(r=>r.component_id===c.id);sensors[c.id]=reading?{value:reading.value,quality:reading.quality}:{value:received||message.readings?.length?null:c.enabled&&d.sensors[c.id]?.quality==='valid'?d.sensors[c.id].value:null,quality:received||message.readings?.length?'missing':c.enabled?d.sensors[c.id]?.quality:'missing'};}const payload=renderTemplate(profile.body,{device:{guid:d.guid,name:d.config.name,area:d.config.area},message:{...message,id:message.message_id},sensors});if(payload.message_id!==message.message_id)fail('Modelo deve preservar message_id no nível principal');return payload;}
 
 export function defaultProfile(){return normalizeProfile({url:'',method:'POST',body:{schema_version:1,message_id:'{{message.message_id}}',device_guid:'{{device.guid}}',recorded_at:'{{message.recorded_at}}',readings:'{{message.readings}}',events:'{{message.events}}',outputs:'{{message.outputs}}',simulated:true},accepted_status:[200,201],ack_path:'accepted'});}

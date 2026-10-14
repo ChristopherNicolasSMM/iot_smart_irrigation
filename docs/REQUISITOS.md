@@ -175,3 +175,7 @@ Administrador pode cancelar mensagem pending e reprocessar dead/cancelled com co
 ## Recuperação — adendo v0.11
 
 Backup do portal cifrado com senha externa e recuperação exclusiva em banco novo, preservando identidade/histórico e colocando dispositivos em quarentena. Sem retomada automática de credenciais, comandos ou envios. Não equivale a parada física; banco ativo ainda tem segredos em claro. P1-06 parcial e procedimentos em VALIDACAO_V011.md.
+
+## Consolidação — adendo v0.12
+
+Entrega 1–3 aprovada: proteção de estado/segredos da fila por chave externa com migração/rotação em novo banco; backup do portal/cliente e recuperação bloqueada até configuração desabilitada confirmada no cliente; estabilidade/desempenho medidos no piloto; telemetria recebida pode usar perfil externo por GUID, sem dependência do canal de controle. ACK local não confirma destino externo. Próxima entrega reúne contrato, testes temporais raros e validação de uso (etapas 4–6); hardware/firmware após avaliação conjunta. Ver OPERACAO_SEGURA.md e VALIDACAO_V012.md.

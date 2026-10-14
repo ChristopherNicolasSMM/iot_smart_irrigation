@@ -1,12 +1,12 @@
 # IoT Smart Irrigation — Conecta Agro Irrigação
 
-Piloto executável v0.11.0 — 14/10/2026.
+Piloto executável v0.12.0 — 14/10/2026.
 
 Sistema de irrigação configurável para múltiplos ESP32, com portal central, portal local, simulação e futura implementação de firmware. Repositório canônico: https://github.com/ChristopherNicolasSMM/iot_smart_irrigation.
 
 ## Estado atual
 
-Esta entrega contém portal central/local, simulador determinístico, persistência SQLite e cliente HTTP independente. Inclui propriedades e áreas, conjuntos por solenoide, agendas por dia, diagnóstico, integração HTTP(S), gestão de acesso e histórico filtrado com exportação CSV/JSON e arquivamento/transferência com histórico por propriedade e gestão auditada da fila. Inclui backup criptografado do portal e recuperação em quarentena via CLI. Ainda não contém firmware ou comunicação com ESP32 real.
+Esta entrega contém portal central/local, simulador determinístico, persistência SQLite e cliente HTTP independente. Inclui propriedades e áreas, conjuntos por solenoide, agendas por dia, diagnóstico, integração HTTP(S), gestão de acesso e histórico filtrado com exportação CSV/JSON e arquivamento/transferência com histórico por propriedade e gestão auditada da fila. Inclui proteção por chave externa, migração/rotação, backup criptografado e recuperação em quarentena do portal/cliente, encaminhamento HTTP e ensaio de estabilidade documentado. Ainda não contém firmware ou comunicação com ESP32 real.
 
 ## Executar
 
@@ -19,12 +19,14 @@ npm start
 Abrir http://127.0.0.1:8080 (central) ou http://127.0.0.1:8080/local (local simulado).
 Login inicial: admin / admin-demo-2026 ou operador / operador-demo-2026.
 
-Leia [execução e demonstração](docs/EXECUCAO.md) e [validação/limites](docs/VALIDACAO_V011.md). O piloto não fecha todo o gate da fase 1.
+Leia [execução e demonstração](docs/EXECUCAO.md) e [validação/limites](docs/VALIDACAO_V012.md). O piloto não fecha todo o gate da fase 1.
 Sequência solicitada: **documentação → portal e simulação → avaliação completa do firmware → implementação e entrega para compilação e validação física**.
 
 ## Documentos
 
 - [Backlog atualizado na raiz](BACKLOG.md)
+- [Entrega consolidada 1–3 e medições](docs/VALIDACAO_V012.md)
+- [Operação segura: chave, migração, rotação e recuperação](docs/OPERACAO_SEGURA.md)
 
 - [Requisitos e regras de irrigação](docs/REQUISITOS.md)
 - [Arquitetura e decisões](docs/ARQUITETURA.md)
@@ -62,4 +64,4 @@ O GitHub conectado já confirmou acesso de leitura e escrita ao repositório. In
 
 ## Próxima entrega
 
-Validar controles da v0.6–v0.11; concluir proteção de segredos no banco ativo e recuperação do cliente, conforme backlog; depois avaliar hardware e firmware. Ver docs/VALIDACAO_V011.md para cobertura e pendências.
+Consolidar etapas **4 a 6**: schemas/OpenAPI e contrato compartilhado, testes temporais raros/recuperação longa e conferência de uso/roteiro de validação do portal. Depois das duas entregas, avaliar hardware e preparar ESP32. Ver BACKLOG.md e docs/VALIDACAO_V012.md para evidências, alerta do ensaio longo e limites.

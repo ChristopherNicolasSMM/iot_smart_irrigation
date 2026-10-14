@@ -1,0 +1,37 @@
+{
+  "version": "0.12.0",
+  "node": "v24.19.0",
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "wall_seconds": 322.09,
+  "requested_soak_seconds": 300,
+  "devices": 4,
+  "unique_messages": 6000,
+  "duplicate_retries": 301,
+  "delivered_attempts": 4369,
+  "dropped_messages": 900,
+  "portal_restarts": 1,
+  "sqlite_bytes": 23945216,
+  "wal_bytes": 4231272,
+  "http_p95_ms": 8.646,
+  "heap_peak_mib": 10.97,
+  "rss_peak_mib": 134.27,
+  "heap_last_mib": 10.94,
+  "event_loop_p95_ms": 21.365,
+  "virtual_days": 7,
+  "virtual_devices": 4,
+  "virtual_samples": 2688,
+  "virtual_events": 60,
+  "virtual_cpu_seconds": 22,
+  "terminal_counts": [
+    {
+      "status": "dead",
+      "count": 731
+    },
+    {
+      "status": "delivered",
+      "count": 4369
+    }
+  ],
+  "integrity": "ok",
+  "bounded_pending_queues": true
+}

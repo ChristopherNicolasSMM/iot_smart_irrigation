@@ -4,3 +4,5 @@ node_modules/
 *.log
 backups/
 *.irrbak
+secrets/
+*.vault-key.json

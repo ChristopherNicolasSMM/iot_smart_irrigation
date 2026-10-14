@@ -244,3 +244,9 @@ Parar servidor/cliente e copiar bancos para backup antes de git pull --ff-only; 
 ## Atualização para v0.10
 
 Parar servidor/cliente, copiar bancos para backup, git pull --ff-only e npm start. Reiniciar cliente independente, se usado: ambos migram contadores de Outbox. Não apagar data/. Migração preserva IDs/conteúdo/tentativas e não executa retenção. Fila de envio oferece consulta, cancelamento, reprocessamento e prévia de retenção manual; aplicação remove definitivamente apenas conteúdo das mensagens encerradas selecionadas. Roteiro em VALIDACAO_V010.md.
+
+## Atualização v0.12 — entrega consolidada 1–3
+
+Pare portal/cliente, preserve bancos e faça backup antes de git pull --ff-only. Execute npm test e npm run check. Bancos legados continuam compatíveis sem chave, mas isso é modo de demonstração sem proteção de segredos em repouso. Para proteger, gere chave externa e migre para banco novo, conforme [OPERACAO_SEGURA.md](OPERACAO_SEGURA.md); apontar chave para banco legado sem migração é recusado. Nunca apagar data/ para resolver esse erro.
+
+Cliente deve ser atualizado para suportar recuperação em quarentena. Encaminhamento HTTP usa a integração por dispositivo já configurada; ACK de ingestão confirma só histórico local. Ver [VALIDACAO_V012.md](VALIDACAO_V012.md) para APIs, migrações, métricas e limites. A próxima entrega consolida etapas 4–6, antes da avaliação do ESP32.

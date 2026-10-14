@@ -1,0 +1,7 @@
+import {createApp} from '../src/server.js';
+export async function portal(t,options={}){
+ const app=createApp({dbPath:':memory:',...options});await new Promise(r=>app.server.listen(0,'127.0.0.1',r));t.after(()=>app.close());const url=`http://127.0.0.1:${app.server.address().port}`;let cookie='';
+ async function call(path,body,token){const response=await fetch(url+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',Cookie:cookie,...(token?{Authorization:'Bearer '+token}:{})},body:body===undefined?undefined:JSON.stringify(body)});const set=response.headers.get('set-cookie');if(set)cookie=set.split(';')[0];return {status:response.status,data:await response.json()};}
+ await call('/api/login',{username:'admin',password:'admin-demo-2026'});const d=(await call('/api/state')).data.devices[0];const config=structuredClone(d.config);config.schedules=[];await call('/api/config',{guid:d.guid,config});await call('/api/simulation',{seconds:1});await call('/api/device/transport',{guid:d.guid,transport:'http'});const token=(await call('/api/device/credential',{guid:d.guid})).data.token;return {app,url,call,d,token};
+}
+export const packet=(d,id='packet-1',extra={})=>{const time=new Date().toISOString();return {schema_version:1,message_id:id,device_guid:d.guid,configuration_revision:d.revision,recorded_at:time,readings:[{component_id:'soil_1',value:37,quality:'valid',recorded_at:time}],events:[],simulated:true,...extra};};
