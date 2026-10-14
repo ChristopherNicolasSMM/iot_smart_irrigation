@@ -55,7 +55,7 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
    const url=new URL(req.url,'http://localhost');const p=url.pathname;
    res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
    if(req.method==='GET'&&publicFiles[p]){res.setHeader('Content-Type',p.endsWith('.js')?'text/javascript; charset=utf-8':p.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8');res.end(readFileSync(resolve(root,'public',publicFiles[p])));return;}
-   if(req.method==='GET'&&p==='/health'){send(200,{ok:true,version:'0.10.0',simulated:true});return;}
+   if(req.method==='GET'&&p==='/health'){send(200,{ok:true,version:'0.11.0',simulated:true});return;}
    if(req.method!=='GET'){
     if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host) {send(403,{error:'Origem não autorizada'});return;}}
     if(req.headers['content-type']?.split(';')[0]!=='application/json'){send(415,{error:'Envie application/json'});return;}

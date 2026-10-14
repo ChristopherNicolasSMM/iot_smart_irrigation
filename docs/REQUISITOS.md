@@ -171,3 +171,7 @@ Arquivar preserva GUID/histórico, bloqueia operação e revoga credencial; exig
 ## Gestão da fila — adendo v0.10
 
 Administrador pode cancelar mensagem pending e reprocessar dead/cancelled com conteúdo disponível do vínculo atual, preservando ID/payload e total de tentativas. Atualizar autenticação exige opção explícita e mesmo destino. Retenção manual usa prévia vinculada/expirável, conserva IDs/auditoria e não remove pendências ou histórico de irrigação. Receptor precisa deduplicar IDs; não prometer exatamente uma entrega sem esse contrato. Escopo/migração em VALIDACAO_V010.md.
+
+## Recuperação — adendo v0.11
+
+Backup do portal cifrado com senha externa e recuperação exclusiva em banco novo, preservando identidade/histórico e colocando dispositivos em quarentena. Sem retomada automática de credenciais, comandos ou envios. Não equivale a parada física; banco ativo ainda tem segredos em claro. P1-06 parcial e procedimentos em VALIDACAO_V011.md.
