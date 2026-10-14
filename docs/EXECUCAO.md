@@ -228,3 +228,7 @@ Desconexão de cliente HTTP é detectada por ausência de heartbeat em 90 s. Est
 ## Atualização para v0.6
 
 Com servidor parado, copiar o banco para backup, executar git pull --ff-only e npm start. Migração automática preserva dados. Não apagar data/. Ver roteiro em VALIDACAO_V06.md. Minha senha exige senha atual e novo login; Propriedades e áreas permite gestão de contas e revogação de vínculo pelo administrador do sistema.
+
+## Atualização para v0.7
+
+Parar servidor e cliente independente, copiar bancos para backup e atualizar com git pull --ff-only. Reiniciar npm start e npm run client com os parâmetros existentes. Não apagar data/; não há migração de tabelas nesta versão. Visão geral apresenta diagnóstico e próxima agenda por conjunto. Sem cliente atualizado, condições do controlador HTTP ficam desconhecidas; runtime antigo continua aceito. Roteiro em VALIDACAO_V07.md.

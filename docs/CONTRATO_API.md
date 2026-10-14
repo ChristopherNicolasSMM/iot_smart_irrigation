@@ -106,3 +106,22 @@ Todas usam sessão humana e proteção de origem existente.
 Avisos: code (same_solenoid_overlap, simultaneous_limit, dynamic_capacity), message, groups e, quando aplicável, schedules/example_date/start_time. scope contém timezone, weekly_from, weekly_through e specific_dates. Máximo 50 avisos; truncated sinaliza limite. A análise usa o relógio do laboratório.
 
 401: sessão ausente/expirada/revogada ou conta desativada. 403: perfil insuficiente ou usuário sem vínculo. 404: GUID/vínculo/usuário não disponível na operação. 400: senha/estado inválido ou tentativa de autobloqueio administrativo. Auditoria persistida em account_audit; consulta/exportação pela interface é evolução futura. Migração e roteiro em VALIDACAO_V06.md.
+
+## Diagnóstico implementado na v0.7
+
+GET /api/diagnostics?guid=UUID exige sessão humana e vínculo com a propriedade do dispositivo; administrador/operador podem consultar (GUID não autorizado: 404). GET /api/state acrescenta o mesmo objeto diagnostics por dispositivo.
+
+| Campo | Conteúdo |
+|---|---|
+| device_guid/generated_at | Identidade e instante da observação (virtual no simulador, UTC real no HTTP) |
+| configuration_revision/desired_revision/configuration_status | Revisão aplicada e estado da publicação |
+| communication | source, online, last_seen_at, age_s, clock_basis e heartbeat_limit_s |
+| controller | known, received_at, age_s, clock_valid e clock_offset_s (diferença entre relógio informado e servidor) |
+| sensors[] | component_id/name/kind/enabled/value, reported_quality, quality, recorded_at/received_at, age_s, control_age_limit_s, source e current_control_known |
+| groups[] | group_id/name/mode, IDs de componentes, observed_output (on/off/unknown), automation_state (running/waiting/eligible/unknown), reasons, cooldown_remaining_s, next_schedule e forecast_kind |
+| next_schedule | null ou schedule_id, slot_key, occurrence_id, date/timezone, start_at/end_at/eligible_at, window_open, conditional e duration_limit_s |
+| forecast | weekly_horizon_days=14, specific_future_dates, basis=applied_configuration, clock_basis e note |
+
+POST /iot/v1/runtime permanece compatível: active_groups e runs existentes. Campo opcional controller_status: {revision,clock_valid,now,uptime,sensors:{component_id:{value,quality,updated_at?,updated_uptime?}},last_stop_uptime:{group_id:number},consumed_occurrences:[string]}. now/updated_at são segundos UTC do controlador; uptime/updated_uptime e last_stop_uptime são segundos monotônicos locais. Revisão deve corresponder à aplicada; leitura válida exige valor finito (umidade 0–100); IDs devem existir; tempos monotônicos não ultrapassam uptime. Relatórios inválidos retornam 400 sem alteração parcial.
+
+Até 8 sensores, 4 conjuntos, 512 IDs consumidos de até 300 caracteres; corpo limitado a 128 KB. Ausência do campo opcional remove relatório diagnóstico anterior, para não tratar cliente legado como atualizado. Atualização persiste estado JSON e horário de recebimento, sem inserir amostra histórica. Relatório confiável exige idade de recebimento até 90 s, dispositivo conectado e revisão correspondente; idade do sensor limita atualidade a 60 s. Runtime recente confirma somente estado de saída, independentemente de informar condições de controle. Limites/semântica completos em VALIDACAO_V07.md.

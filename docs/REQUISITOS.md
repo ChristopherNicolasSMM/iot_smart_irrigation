@@ -155,3 +155,7 @@ Agrupar solenoide, sensor de umidade e temperatura como conjunto nomeado/identif
 ## Agenda e acesso — adendo v0.6
 
 Avisos antecipados de sobreposição por conjunto e disputa de simultaneidade são informativos e não substituem proteções durante execução. Escopo temporal e limites em VALIDACAO_V06.md. Senha própria exige senha atual; administrador do sistema gerencia senhas de outros usuários, estado global da conta e vínculos por propriedade. Revogação encerra sessões abertas e permanece após reinício. Não implica parada automática de dispositivo.
+
+## Diagnóstico — adendo v0.7
+
+Portal deve distinguir idade/qualidade/fonte de leitura e condições conhecidas/desconhecidas do controle local. Previsão por conjunto usa revisão aplicada: estático prevê agenda, híbrido janela condicional e dinâmico não tem horário fixo. Relatório corrente do cliente HTTP é separado das amostras históricas de 15 minutos. Comunicação recente não torna atual uma leitura ou saída antiga. Escopo temporal e compatibilidade em VALIDACAO_V07.md.

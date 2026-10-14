@@ -10,6 +10,7 @@ import { initIngestion, tokenHash, ingest } from './ingestion.js';
 import { DeviceProtocol } from './protocol.js';
 import { Properties, AccessError } from './properties.js';
 import { scheduleWarnings } from './schedule-warnings.js';
+import {deviceDiagnostics} from './diagnostics.js';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.ADMIN_PASSWORD||'admin-demo-2026',operatorPassword=process.env.OPERATOR_PASSWORD||'operador-demo-2026',allowLocalIntegrations=process.env.ALLOW_LOCAL_INTEGRATIONS==='1',transport}={}){
  if(dbPath!==':memory:')mkdirSync(dirname(resolve(dbPath)),{recursive:true});const db=new DatabaseSync(dbPath);
@@ -50,7 +51,7 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
    const url=new URL(req.url,'http://localhost');const p=url.pathname;
    res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
    if(req.method==='GET'&&publicFiles[p]){res.setHeader('Content-Type',p.endsWith('.js')?'text/javascript; charset=utf-8':p.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8');res.end(readFileSync(resolve(root,'public',publicFiles[p])));return;}
-   if(req.method==='GET'&&p==='/health'){send(200,{ok:true,version:'0.5.0',simulated:true});return;}
+   if(req.method==='GET'&&p==='/health'){send(200,{ok:true,version:'0.7.0',simulated:true});return;}
    if(req.method!=='GET'){
     if(req.headers.origin){const origin=new URL(req.headers.origin);if(origin.host!==req.headers.host) {send(403,{error:'Origem não autorizada'});return;}}
     if(req.headers['content-type']?.split(';')[0]!=='application/json'){send(415,{error:'Envie application/json'});return;}
@@ -59,7 +60,7 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
    if(p.startsWith('/iot/v1/')){
     const token=req.headers.authorization?.match(/^Bearer ([A-Za-z0-9_-]{20,200})$/)?.[1];const credential=token?db.prepare('SELECT device FROM device_credentials WHERE hash=?').get(tokenHash(token)):null;const d=credential&&state.devices.find(d=>d.guid===credential.device);if(!d){send(401,{error:'Credencial de dispositivo inválida'});return;}
     let result;
-    if(req.method==='POST'&&p==='/iot/v1/telemetry')result=mutate(()=>ingest(db,state,d,body));
+    if(req.method==='POST'&&p==='/iot/v1/telemetry')result=mutate(()=>{const result=ingest(db,state,d,body);if(d.transport==='http')protocol.seen(d);return result;});
     else if(req.method==='GET'&&p==='/iot/v1/configuration')result=mutate(()=>protocol.configuration(d));
     else if(req.method==='POST'&&p==='/iot/v1/configuration/ack')result=mutate(()=>protocol.acknowledgeConfiguration(d,body));
     else if(req.method==='GET'&&p==='/iot/v1/commands')result=mutate(()=>protocol.commands(d));
@@ -78,7 +79,8 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
    const scope=properties.scope(session),authorized=()=>state.devices.filter(d=>d.property_id===scope.property.id);
    const deviceByGuid=guid=>{const d=authorized().find(d=>d.guid===guid);if(!d)throw new AccessError();return d;};
    const device=()=>deviceByGuid(body.guid);
-   if(req.method==='GET'&&p==='/api/state'){send(200,{now:state.now,server_time:new Date().toISOString(),seed:state.seed,paused:state.paused,speed:state.speed,properties:properties.list(session.username),property_id:scope.property.id,areas:properties.areaList(scope.property.id),devices:authorized().map(d=>({...d,integration:{...(d.integration||state.integration),header_names:Object.keys(outbox.getHeaders(d.guid)),local_destinations_allowed:allowLocalIntegrations}})),integration:{enabled:false,url:'',header_names:[]},user:{username:session.username,role:scope.role,system_admin:scope.system_admin},simulated:true});return;}
+   if(req.method==='GET'&&p==='/api/state'){send(200,{now:state.now,server_time:new Date().toISOString(),seed:state.seed,paused:state.paused,speed:state.speed,properties:properties.list(session.username),property_id:scope.property.id,areas:properties.areaList(scope.property.id),devices:authorized().map(d=>({...d,diagnostics:deviceDiagnostics(state,d),integration:{...(d.integration||state.integration),header_names:Object.keys(outbox.getHeaders(d.guid)),local_destinations_allowed:allowLocalIntegrations}})),integration:{enabled:false,url:'',header_names:[]},user:{username:session.username,role:scope.role,system_admin:scope.system_admin},simulated:true});return;}
+   if(req.method==='GET'&&p==='/api/diagnostics'){send(200,deviceDiagnostics(state,deviceByGuid(url.searchParams.get('guid'))));return;}
    if(req.method==='GET'&&p==='/api/properties'){send(200,properties.list(session.username));return;}
    if(req.method==='GET'&&p==='/api/members'){if(!scope.system_admin)throw new AccessError('Somente administrador do sistema',403);send(200,properties.members(scope.property.id));return;}
    if(req.method==='GET'&&['/api/events','/api/history'].includes(p)){const table=p==='/api/events'?'events':'samples',guid=url.searchParams.get('guid'),guids=guid?[deviceByGuid(guid).guid]:authorized().map(d=>d.guid);const rows=guids.length?db.prepare(`SELECT body FROM ${table} WHERE device IN (${guids.map(()=>'?').join(',')}) ORDER BY id DESC LIMIT 500`).all(...guids):[];send(200,rows.map(r=>JSON.parse(r.body)));return;}
@@ -106,7 +108,7 @@ export function createApp({dbPath='data/pilot.sqlite',adminPassword=process.env.
    else if(p==='/api/clock')result=mutate(()=>{engine.setClock(body.now);return {ok:true,now:state.now};});
    else if(p==='/api/clock-valid')result=mutate(()=>{engine.clockValid(device(),body.valid);return {ok:true};});
    else if(p==='/api/power')result=mutate(()=>{engine.power(device(),body.powered);return {ok:true};});
-   else if(p==='/api/device/transport')result=mutate(()=>{const d=device();if(!['internal','http'].includes(body.transport))throw new ValidationError('Transporte inválido');if(Object.keys(d.active).length)throw new ValidationError('Pare o controlador antes de trocar transporte');d.transport=body.transport;d.online=body.transport==='internal';d.last_seen=null;const result=engine.publish(d,d.config);db.prepare("INSERT INTO configuration_versions VALUES(?,?,'pending',?,?,NULL,NULL)").run(d.guid,result.desired_revision,JSON.stringify(d.desired_config),new Date().toISOString());return {ok:true,...result};});
+   else if(p==='/api/device/transport')result=mutate(()=>{const d=device();if(!['internal','http'].includes(body.transport))throw new ValidationError('Transporte inválido');if(Object.keys(d.active).length)throw new ValidationError('Pare o controlador antes de trocar transporte');d.transport=body.transport;d.online=body.transport==='internal';d.last_seen=null;delete d.controller_status;delete d.controller_status_received_at;delete d.last_runtime_at;const result=engine.publish(d,d.config);db.prepare("INSERT INTO configuration_versions VALUES(?,?,'pending',?,?,NULL,NULL)").run(d.guid,result.desired_revision,JSON.stringify(d.desired_config),new Date().toISOString());return {ok:true,...result};});
    else if(p==='/api/property')result=mutate(()=>properties.saveProperty(session,body));
    else if(p==='/api/area')result=mutate(()=>properties.saveArea(scope.property.id,body));
    else if(p==='/api/user')result=mutate(()=>properties.createUser(session,{...body,property_id:scope.property.id}));

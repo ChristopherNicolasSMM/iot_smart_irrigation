@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 13/10/2026 · entrega v0.6.0. Fonte canônica das próximas entregas.
+Atualizado: 13/10/2026 · entrega v0.7.0. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -8,7 +8,7 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 
 | ID | Prioridade | Item | Status | Evidência / próxima ação |
 |---|---|---|---|---|
-| P0-01 | P0 | Validar visualmente portal, checkboxes e horários | A validar | v0.5 validada pelo usuário; controles novos v0.6 aguardam validação de uso |
+| P0-01 | P0 | Validar visualmente portal, checkboxes e horários | A validar | v0.5 validada pelo usuário; controles novos v0.6/v0.7 aguardam validação de uso |
 | P0-02 | P0 | Políticas de tempo e recuperação | Entregue/testado nos cenários principais | Relógio monotônico, ajuste até 7 dias, falha de energia, DST comum; ampliar transições raras |
 | P0-03 | P0 | Protocolo de dispositivo independente | Entregue/testado em software | Cliente HTTP separado, config/hash/ACK, comandos, expiração, reconciliação; hardware posterior |
 | P0-04 | P0 | Conflitos, simultaneidade e duração máxima | Entregue/testado em software | Bloqueio/log e avisos prévios v0.6; análise temporal delimitada em VALIDACAO_V06.md |
@@ -21,7 +21,7 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 |---|---|---|---|---|
 | P1-01 | P1 | Completar gestão de contas: senha, desativação e revogação de vínculo | Entregue/testado v0.6 | Sessões revogadas; vínculos removidos persistem após reinício; auditoria sem segredos |
 | P1-02 | P1 | Desativar/arquivar dispositivos e transferir propriedade | Protocolo e auditoria | Histórico/GUID preservados; credencial anterior revogada |
-| P1-03 | P1 | Diagnóstico de comunicação/leitura e próxima execução por conjunto | P0-02/P0-03/P0-05 | Última comunicação, idade da leitura, motivo de bloqueio e próxima agenda claros |
+| P1-03 | P1 | Diagnóstico de comunicação/leitura e próxima execução por conjunto | Entregue/testado v0.7 | Última comunicação, idade/fonte/qualidade, motivos, pausa e previsão por conjunto; limites em VALIDACAO_V07.md |
 | P1-04 | P1 | Histórico com filtros, todos os sensores e exportação | Dados e conjuntos | Consultar período/componente/conjunto e distinguir ausência de dados |
 | P1-05 | P1 | Fila: cancelamento, reprocessamento e retenção | Envio HTTP | Limpeza auditada sem apagar pendências silenciosamente |
 | P1-06 | P1 | Backup/restauração e proteção de segredos | SQLite e contas | Recuperação demonstrada; definir encriptação/gestão de chave para produção |
@@ -58,14 +58,18 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 
 ## Sequência recomendada
 
-1. Validar controles novos da v0.6 (agendas e contas); v0.5 confirmada pelo usuário.
-2. Diagnóstico/próxima execução P1-03 e histórico P1-04; depois arquivamento/transferência P1-02.
+1. Validar controles da v0.6/v0.7 (contas/agendas/diagnóstico); v0.5 confirmada pelo usuário.
+2. Histórico P1-04, depois arquivamento/transferência P1-02.
 3. Fila/retencão, segredos, backup, estabilidade e contrato definitivo.
 4. Avaliação de hardware, firmware e validação física.
 
 ## Evidência da v0.6
 
 112 testes aprovados e verificação de sintaxe; migração incremental sem apagar dados. Roteiro, APIs e limites em docs/VALIDACAO_V06.md. Análise semanal limitada, até 50 avisos; híbrido/dinâmico são condicionais. Sem validação física nem nova validação visual automatizada.
+
+## Evidência da v0.7
+
+131 testes aprovados e verificação de sintaxe; sem nova alteração de tabelas. Roteiro/API/compatibilidade em docs/VALIDACAO_V07.md. Previsão usa revisão aplicada, horizonte semanal de 14 dias e todas as datas específicas futuras; não garante acionamento. HTTP sem relatório atual não presume estado local nem sensor atual. Histórico continua a cada 900 s. Sem validação física ou nova validação visual automatizada.
 
 ## Política de atualização
 
