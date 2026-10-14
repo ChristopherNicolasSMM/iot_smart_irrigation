@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 14/10/2026 · entrega v0.12.0. Fonte canônica das próximas entregas.
+Atualizado: 14/10/2026 · entrega v0.12.1. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -89,6 +89,10 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 ## Evidência da v0.12
 
 215 testes aprovados e sintaxe. Estado e segredos da fila podem ser cifrados por chave externa; bancos protegidos recusam ausência/chave incorreta. Migração/rotação geram cópia nova, preservando origem. Backup do cliente mantém recovery_hold até configuração desabilitada confirmada; término offline e reconexão testados. Encaminhamento preserva dados recebidos e separa ACK local da entrega externa, sem encaminhar seus próprios rastros. Ensaio: 6000 mensagens locais, 301 duplicatas deduplicadas, 4369 envios entregues, 731 falhas e 900 descartes externos, sem perda do histórico local; 300 s reais + 7 dias virtuais/2688 amostras. Métricas/alerta nativo/limites em docs/VALIDACAO_V012.md. Sem nova validação visual ou física. Etapas 4–6 reservadas para a próxima entrega.
+
+## Correção v0.12.1 — validação Windows
+
+Retorno do usuário na v0.12: 209 aprovados e 6 falhas no Windows. Cinco ocorreram na limpeza de temporários antes de fechar SQLite (EBUSY); sexta na expectativa de confirmação imediata após reconexão. Corrigida ordem de cleanup, poll explícito serializa ciclo ocupado e executa ciclo novo, timer não acumula chamadas, fechamento aguarda trabalho em andamento. Teste de reconexão injeta uma falha transitória e verifica ACK em até três ciclos sem perder registros. 217 testes aprovados no ambiente Linux desta entrega e guardas de regressão; confirmação da v0.12.1 no Windows aguarda usuário. Não alterar dados ou esquemas. Etapas 4–6 permanecem próximas; ver docs/CORRECAO_V0121.md.
 
 ## Política de atualização
 

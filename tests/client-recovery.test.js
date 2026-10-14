@@ -14,9 +14,36 @@ test('backup de execução ativa não retoma saída e reconcilia após configura
 });
 test('cliente termina controle offline e reconcilia após reinício do portal protegido',async t=>{
  const {createApp}=await import('../src/server.js');const dir=mkdtempSync(join(tmpdir(),'client-outage-')),keyFile=join(dir,'key.vault-key.json'),dbPath=join(dir,'portal.sqlite');createKeyFile(keyFile);
- const f=await portal(t,{dbPath,keyFile}),client=createDeviceClient({url:f.url,guid:f.d.guid,token:f.token,dbPath:join(dir,'client.sqlite'),keyFile,log:()=>{}});let restarted;
+ const logs=[];const f=await portal(t,{dbPath,keyFile}),client=createDeviceClient({url:f.url,guid:f.d.guid,token:f.token,dbPath:join(dir,'client.sqlite'),keyFile,log:line=>logs.push(line)});let restarted;
  t.after(()=>client.close());t.after(()=>restarted?.close());t.after(()=>rmSync(dir,{recursive:true,force:true}));
  await client.poll();await f.call('/api/command',{guid:f.d.guid,zone_id:'zone_1',command_id:'outage-command',duration_s:5});await client.poll();assert.ok(client.engine.s.devices[0].active.zone_1);
  const closed=new Promise(r=>f.app.server.once('close',r)),port=f.app.server.address().port;f.app.close();await closed;client.advance(5);assert.deepEqual(client.engine.s.devices[0].active,{});assert.ok(client.db.prepare('SELECT seq FROM command_acks').get());
- restarted=createApp({dbPath,keyFile});await new Promise(r=>restarted.server.listen(port,'127.0.0.1',r));await client.poll();assert.equal(restarted.db.prepare("SELECT status FROM machine_commands WHERE id='outage-command'").get().status,'completed');assert.deepEqual(restarted.engine.s.devices[0].active,{});assert.equal(client.db.prepare('SELECT COUNT(*) n FROM command_acks').get().n,0);
+ restarted=createApp({dbPath,keyFile});await new Promise(r=>restarted.server.listen(port,'127.0.0.1',r));
+ // A restarted server can invalidate a cached keep-alive socket. Require eventual
+ // ACK after retry, rather than assuming the first request after restart succeeds.
+ const originalFetch=globalThis.fetch;let failOnce=true;
+ t.mock.method(globalThis,'fetch',(...args)=>{
+  if(failOnce&&String(args[0])===f.url+'/iot/v1/configuration'){failOnce=false;return Promise.reject(new TypeError('fetch failed'));}
+  return originalFetch(...args);
+ });
+ const status=()=>restarted.db.prepare("SELECT status FROM machine_commands WHERE id='outage-command'").get().status;
+ for(let attempt=0;attempt<3&&status()!=='completed';attempt++)await client.poll();
+ assert.equal(failOnce,false);assert.equal(status(),'completed',logs.join(' | '));assert.deepEqual(restarted.engine.s.devices[0].active,{});assert.equal(client.db.prepare('SELECT COUNT(*) n FROM command_acks').get().n,0);
+});
+test('poll explícito espera ciclo ocupado e executa sincronização nova',async t=>{
+ const f=await portal(t),client=createDeviceClient({url:f.url,guid:f.d.guid,token:f.token,dbPath:':memory:',log:()=>{}});t.after(()=>client.close());
+ const originalFetch=globalThis.fetch;let release,entered,requests=0;
+ const gate=new Promise(r=>release=r),blocked=new Promise(r=>entered=r);
+ t.mock.method(globalThis,'fetch',async(...args)=>{
+  if(String(args[0])===f.url+'/iot/v1/configuration'){
+   requests++;if(requests===1){entered();await gate;}
+  }
+  return originalFetch(...args);
+ });
+ const first=client.poll();await blocked;let finished=false;
+ const second=client.poll().then(()=>{finished=true;});
+ try{await new Promise(r=>setImmediate(r));assert.equal(finished,false,'Não confirmar poll antes de sincronizar');}
+ finally{release();await Promise.all([first,second]);}
+ assert.ok(requests>=2,'A solicitação explícita precisa executar ciclo novo');
+ assert.equal(client.engine.s.devices[0].guid,f.d.guid);
 });

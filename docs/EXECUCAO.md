@@ -250,3 +250,7 @@ Parar servidor/cliente, copiar bancos para backup, git pull --ff-only e npm star
 Pare portal/cliente, preserve bancos e faça backup antes de git pull --ff-only. Execute npm test e npm run check. Bancos legados continuam compatíveis sem chave, mas isso é modo de demonstração sem proteção de segredos em repouso. Para proteger, gere chave externa e migre para banco novo, conforme [OPERACAO_SEGURA.md](OPERACAO_SEGURA.md); apontar chave para banco legado sem migração é recusado. Nunca apagar data/ para resolver esse erro.
 
 Cliente deve ser atualizado para suportar recuperação em quarentena. Encaminhamento HTTP usa a integração por dispositivo já configurada; ACK de ingestão confirma só histórico local. Ver [VALIDACAO_V012.md](VALIDACAO_V012.md) para APIs, migrações, métricas e limites. A próxima entrega consolida etapas 4–6, antes da avaliação do ESP32.
+
+## Correção v0.12.1 — Windows
+
+A v0.12.1 corrige limpeza de arquivos SQLite nos testes e espera da sincronização do cliente. Com portal/cliente parados, git pull --ff-only, npm test e npm run check. Reinicie os processos após atualizar. Sem migração adicional nem alteração de bancos/chaves. Ver CORRECAO_V0121.md para o diagnóstico e evidências; confirmação no Windows permanece a cargo do ambiente do usuário.

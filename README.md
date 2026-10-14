@@ -1,6 +1,6 @@
 # IoT Smart Irrigation — Conecta Agro Irrigação
 
-Piloto executável v0.12.0 — 14/10/2026.
+Piloto executável v0.12.1 — 14/10/2026.
 
 Sistema de irrigação configurável para múltiplos ESP32, com portal central, portal local, simulação e futura implementação de firmware. Repositório canônico: https://github.com/ChristopherNicolasSMM/iot_smart_irrigation.
 
@@ -25,6 +25,7 @@ Sequência solicitada: **documentação → portal e simulação → avaliação
 ## Documentos
 
 - [Backlog atualizado na raiz](BACKLOG.md)
+- [Correção de testes Windows e sincronização do cliente](docs/CORRECAO_V0121.md)
 - [Entrega consolidada 1–3 e medições](docs/VALIDACAO_V012.md)
 - [Operação segura: chave, migração, rotação e recuperação](docs/OPERACAO_SEGURA.md)
 
