@@ -13,6 +13,7 @@ struct FirmwareConfig {
   bool moistureEnabled[4] = {}, temperatureEnabled[4] = {};
   uint8_t count = 0, moistureCount = 0, temperatureCount = 0, capacity = 1;
   Schedule slots[maxSlots];
+  String slotScheduleIds[maxSlots], slotTimeIds[maxSlots];
   size_t slotCount = 0;
   String timezone;
 };
@@ -214,6 +215,9 @@ inline bool parseConfiguration(JsonObjectConst c, FirmwareConfig &out,
         s.durationSecond = end + (cross ? 86400 : 0) - s.startSecond;
       } else
         return fail("termination_invalid");
+      out.slotScheduleIds[out.slotCount] = id;
+      out.slotTimeIds[out.slotCount] = calendar == "weekly" && !agenda["day_times"].isNull()
+                                          ? String(t["id"] | "") : String();
       out.slots[out.slotCount++] = s;
       return true;
     };

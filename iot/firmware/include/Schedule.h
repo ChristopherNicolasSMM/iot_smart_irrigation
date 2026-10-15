@@ -14,6 +14,11 @@ struct Schedule {
 inline int32_t civilDate(const tm &t) {
   return (t.tm_year + 1900) * 10000 + (t.tm_mon + 1) * 100 + t.tm_mday;
 }
+inline uint64_t occurrenceKey(uint64_t schedule, int32_t date, uint32_t revision) {
+  uint64_t key = (schedule ^ uint64_t(date)) * 1099511628211ULL;
+  key ^= revision;
+  return key ? key : 1;
+}
 inline bool validTime(const char *s, uint32_t &seconds) {
   if (!s || !s[0] || !s[1] || s[2] != ':' || !s[3] || !s[4] || s[5])
     return false;
@@ -68,11 +73,7 @@ inline Window evaluate(const Schedule &s, time_t epoch, int64_t previousEpoch,
     w.remainingMs = uint32_t(ends - epoch) * 1000;
     // Stable per schedule/date/revision, FNV based; persistence journal stores
     // it.
-    uint64_t key = s.id;
-    key ^= uint64_t(civilDate(day));
-    key *= 1099511628211ULL;
-    key ^= revision;
-    w.occurrence = key ? key : 1;
+    w.occurrence = occurrenceKey(s.id, civilDate(day), revision);
     return w;
   }
   return w;

@@ -199,7 +199,7 @@ public:
           else if (r.source == Source::Hybrid && !w.open)
             stop(i, now, "window_end");
         }
-        continue;
+        if (r.active) continue;
       }
       if (!clock_ || !z.enabled)
         continue;

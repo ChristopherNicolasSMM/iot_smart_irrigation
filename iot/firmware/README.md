@@ -1,4 +1,4 @@
-# Firmware experimental 0.3.1
+# Firmware experimental 0.3.2
 
 ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicitamente autorizado pelo usuário com hardware ainda em avaliação. Compilação não comprova funcionamento físico.
 
@@ -78,7 +78,7 @@ npm test
 
 Executar os comandos acima a partir da raiz. Ambiente host requer g++, Python e Node. Resultados, limitações e roteiro físico: [../docs/VALIDACAO_FIRMWARE_V02.md](../docs/VALIDACAO_FIRMWARE_V02.md).
 
-Esta versão ainda não tem paridade integral com o simulador: fuso restrito UTC/São Paulo atual (BRT fixo), datas ISO com ano de quatro dígitos entre 2020 e 9999 (tempo de 64 bits obrigatório), limite de 64 horários expandidos e journal de até 128 ocorrências recentes no dispositivo, com corte temporal/compactação automática na 0.3.1. Não retoma execução no boot; recuperação resumida de observação disponível na 0.2.1; detalhe por agenda e DST global permanecem pendentes. Falha/saturação deve ser diagnosticada, não apagada automaticamente.
+Esta versão ainda não tem paridade integral com o simulador: fuso restrito UTC/São Paulo atual (BRT fixo), datas ISO com ano de quatro dígitos entre 2020 e 9999 (tempo de 64 bits obrigatório), limite de 64 horários expandidos e journal de até 128 ocorrências recentes no dispositivo, com corte temporal/compactação automática na 0.3.1. Não retoma execução no boot; recuperação resumida de observação disponível na 0.2.1; detalhes por agenda disponíveis na 0.3.2; DST global permanece pendente. Falha/saturação deve ser diagnosticada, não apagada automaticamente.
 
 ## Recuperação 0.2.1
 
@@ -111,4 +111,10 @@ Esse comando deve ser executado na raiz, compila em pasta temporária e descarta
 
 A retenção já não esgota após 128 execuções acumuladas por conjunto. O journal recente e um corte temporal monotônico são persistidos no mesmo blob NVS antes de acionar saída. No primeiro upgrade, os hashes legados são preservados e janelas anteriores ao instante de migração não são retomadas. Não faça downgrade sem plano/backup. O limite de 128 registros **recentes** ainda existe para rajadas/configurações que excedam o orçamento; não há expulsão insegura de registros.
 
-Consulte [VALIDACAO_FIRMWARE_V031.md](../docs/VALIDACAO_FIRMWARE_V031.md) para formato, falhas, ensaio de 16 mil ocorrências, migração e limites. GUID e partições permanecem iguais. Diagnóstico informa corte, ocupação e capacidade do journal. A auditoria detalhada por agenda é a próxima entrega.
+Consulte [VALIDACAO_FIRMWARE_V031.md](../docs/VALIDACAO_FIRMWARE_V031.md) para formato, falhas, ensaio de 16 mil ocorrências, migração e limites. GUID e partições permanecem iguais. Diagnóstico informa corte, ocupação e capacidade do journal. A auditoria por agenda/ocorrência está disponível na 0.3.2.
+
+## Diagnóstico de agendas — 0.3.2
+
+Execuções automáticas e observações de recuperação agora identificam agenda, horário e ocorrência. Conflitos registram a agenda omitida e a concorrente quando existente. O híbrido segue sua janela original; agendas estáticas consecutivas podem terminar/iniciar no mesmo tick, sem conflito artificial.
+
+Observações são registradas localmente e enviadas por telemetria com event_id estável, deduplicado pelo portal. Fila de 16 mensagens e auditoria de 64 registros permanecem limitadas: saturação pode deixar o evento somente local e incrementar lost_events, sem retransmissão posterior do anel. Consulte [VALIDACAO_FIRMWARE_V032.md](../docs/VALIDACAO_FIRMWARE_V032.md). O portal local completo continua sendo a próxima entrega.

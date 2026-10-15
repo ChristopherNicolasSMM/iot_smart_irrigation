@@ -8,6 +8,7 @@
 #include "RemoteProtocol.h"
 #include "Recovery.h"
 #include "OccurrenceLedger.h"
+#include "ScheduleDiagnostics.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -65,6 +66,11 @@ int64_t previousEpoch = 0;
 bool recoveryPending = true;
 OccurrenceLedger occurrences;
 bool occurrencesReady = false;
+uint64_t lastScheduleObservation[3][maxSlots] = {};
+int runScheduleSlot[4] = {-1,-1,-1,-1};
+Window runScheduleWindow[4];
+int plannedScheduleSlot[4] = {-1,-1,-1,-1};
+Window plannedScheduleWindow[4];
 uint32_t checkpointAt = 0;
 bool storageReady = false, bootHold = true;
 Reading moisture[4], tempReadings[4];
@@ -344,14 +350,29 @@ struct Outputs : Backend {
     return true;
   }
 } outputs;
+String hexKey(uint64_t key) {
+  char text[17];
+  snprintf(text,sizeof(text),"%016llx",static_cast<unsigned long long>(key));
+  return String(text);
+}
+void scheduleContext(JsonObject row,int index,const Window &window) {
+  if (index<0 || size_t(index)>=config.slotCount || !window.occurrence) return;
+  row["schedule_id"]=config.slotScheduleIds[index];
+  if (config.slotTimeIds[index].length()) row["time_slot_id"]=config.slotTimeIds[index];
+  row["occurrence_id"]=hexKey(window.occurrence);
+  row["window_start"]=iso(time_t(window.begins));
+  const int64_t end=window.begins+config.slots[index].durationSecond;
+  if (validClockEpoch(end)) row["window_end"]=iso(time_t(end));
+  else row["window_end"]=nullptr;
+}
 bool persistAudit(size_t slot, const char *kind, const char *reason,
-                  Source source) {
+                  Source source, int scheduleIndex=-1, const Window *window=nullptr, int competing=-1) {
   if (!storageReady || !lockStore()) {
     bootHold = true;
     return false;
   }
   uint64_t seq = store.getULong64("aseq", 0) + 1;
-  DynamicJsonDocument d(768);
+  DynamicJsonDocument d(1280);
   d["sequence"] = seq;
   d["zone_id"] = config.zoneIds[slot];
   d["kind"] = kind;
@@ -359,12 +380,22 @@ bool persistAudit(size_t slot, const char *kind, const char *reason,
   d["source"] = sourceName(source);
   d["uptime_ms"] = millis();
   d["revision"] = revision;
+  if (window) scheduleContext(d.as<JsonObject>(),scheduleIndex,*window);
+  if (competing>=0 && size_t(competing)<config.slotCount) {
+    d["competing_schedule_id"]=config.slotScheduleIds[competing];
+    if (config.slotTimeIds[competing].length())
+      d["competing_time_slot_id"]=config.slotTimeIds[competing];
+  }
   if (clockReady())
     d["recorded_at"] = iso(time(nullptr));
   else
     d["recorded_at"] = nullptr;
+  if (d.overflowed()) { unlockStore();bootHold=true;return false; }
   String raw;
-  serializeJson(d, raw);
+  const size_t expected=measureJson(d);
+  if (serializeJson(d,raw)!=expected || raw.length()!=expected) {
+    unlockStore();bootHold=true;return false;
+  }
   String key = "a" + String(uint32_t(seq % 64));
   bool ok = store.putString(key.c_str(), raw) == raw.length() &&
             store.putULong64("aseq", seq) == 8;
@@ -388,7 +419,14 @@ bool saveOccurrences(const OccurrenceLedger &next) {
 }
 struct EventJournal : Journal {
   bool reserve(size_t slot, Source source) override {
-    return persistAudit(slot, "requested", "output_attempt", source);
+    const bool scheduled=source==Source::Static || source==Source::Hybrid;
+    if (scheduled) {
+      runScheduleSlot[slot]=plannedScheduleSlot[slot];
+      runScheduleWindow[slot]=plannedScheduleWindow[slot];
+    }
+    return persistAudit(slot,"requested","output_attempt",source,
+                        scheduled ? runScheduleSlot[slot] : -1,
+                        scheduled ? &runScheduleWindow[slot] : nullptr);
   }
   bool contains(size_t slot, uint64_t key) const override {
     return occurrencesReady && occurrences.contains(slot,key);
@@ -417,7 +455,13 @@ struct EventJournal : Journal {
       actual = "failed";
       why = "remote_output_unknown";
     }
-    persistAudit(slot, actual, why, source);
+    const bool scheduled=source==Source::Static || source==Source::Hybrid;
+    if (scheduled && strcmp(kind,"completed") && strcmp(kind,"interrupted")) {
+      runScheduleSlot[slot]=plannedScheduleSlot[slot];
+      runScheduleWindow[slot]=plannedScheduleWindow[slot];
+    }
+    persistAudit(slot, actual, why, source,scheduled ? runScheduleSlot[slot] : -1,
+                 scheduled ? &runScheduleWindow[slot] : nullptr);
     Serial.printf("event slot=%u kind=%s reason=%s\n", unsigned(slot), actual,
                   why);
     if (commands[slot].length()) {
@@ -451,10 +495,13 @@ struct EventJournal : Journal {
     e["source"] = sourceName(source);
     e["recorded_at"] = iso(time(nullptr));
     e["revision"] = revision;
+    if (scheduled) scheduleContext(e,runScheduleSlot[slot],runScheduleWindow[slot]);
     if (eventCommand.length())
       e["command_id"] = eventCommand;
+    if (doc.overflowed()) { ++lostEvents;return; }
     String raw;
-    serializeJson(doc, raw);
+    const size_t expected=measureJson(doc);
+    if (serializeJson(doc,raw)!=expected || raw.length()!=expected) { ++lostEvents;return; }
     queueJob("/iot/v1/telemetry", raw);
   }
 } journal;
@@ -476,6 +523,46 @@ bool maintainOccurrences(time_t epoch) {
   for (size_t i=0;i<config.count;++i)
     if (!persistAudit(i,"retention",migrating ? "legacy_fenced" : "temporal_compaction",Source::Static))
       return false;
+  return true;
+}
+// Diagnostic telemetry is best effort under the existing bounded outbox policy.
+// Save locally first; stable event IDs let central ingestion deduplicate reboot
+// retransmissions even when the RAM suppression cache has been lost.
+bool scheduleObservation(size_t index,const Window &window,const char *kind,
+                         const char *reason,unsigned category,int competing=-1,bool historyTruncated=false) {
+  const auto &s=config.slots[index];
+  const auto key=diagnosticKey(s,window,revision,reason);
+  if (lastScheduleObservation[category][index]==key) return true;
+  const auto source=config.zones[s.zone].mode==Mode::Hybrid ? Source::Hybrid : Source::Static;
+  if (!persistAudit(s.zone,kind,reason,source,int(index),&window,competing)) return false;
+  DynamicJsonDocument doc(3072);
+  doc["schema_version"]=1;doc["message_id"]=uuid();doc["device_guid"]=guid;
+  doc["boot_id"]=bootId;doc["sequence"]=++sequence;
+  doc["recorded_at"]=iso(time(nullptr));doc["time_quality"]="synchronized";
+  doc["configuration_revision"]=revision;doc["simulated"]=false;
+  doc.createNestedArray("readings");
+  JsonObject event=doc.createNestedArray("events").createNestedObject();
+  const String stableHash=digest(guid+":"+String(revision)+":"+hexKey(key));
+  if (stableHash.length()!=64) { bootHold=true;return false; }
+  event["event_id"]=String("schedule-")+stableHash;
+  event["device_guid"]=guid;event["zone_id"]=config.zoneIds[s.zone];
+  event["actuator_id"]=config.actuatorIds[s.zone];event["revision"]=revision;
+  event["kind"]=kind;event["reason"]=reason;event["source"]=sourceName(source);
+  event["recorded_at"]=iso(time(nullptr));
+  scheduleContext(event,int(index),window);
+  event["history_truncated"]=historyTruncated;
+  if (!s.date) event["weekly_lookback_days"]=7;
+  if (competing>=0) {
+    event["competing_schedule_id"]=config.slotScheduleIds[competing];
+    if (config.slotTimeIds[competing].length())
+      event["competing_time_slot_id"]=config.slotTimeIds[competing];
+  }
+  if (doc.overflowed()) { bootHold=true;return false; }
+  String raw;
+  const size_t expected=measureJson(doc);
+  if (serializeJson(doc,raw)!=expected || raw.length()!=expected) { bootHold=true;return false; }
+  queueJob("/iot/v1/telemetry",raw); // failure counted by existing lost_events
+  lastScheduleObservation[category][index]=key;
   return true;
 }
 // A checkpoint describes observation, not proof of valve execution. The last
@@ -513,6 +600,9 @@ bool recoverSchedules(time_t epoch, uint32_t now) {
       auto result = unobserved(s, from, epoch);
       counts[s.zone] += result.windows;
       truncated[s.zone] = truncated[s.zone] || result.truncated;
+      if (!visitUnobserved(s,from,epoch,revision,[&](const Window &window) {
+            return scheduleObservation(i,window,"recovery_observation","unobserved_window",0,-1,result.truncated);
+          })) return false;
     }
     for (size_t i = 0; i < config.count; ++i) {
       const Source source = config.zones[i].mode == Mode::Hybrid
@@ -541,9 +631,8 @@ bool recoverSchedules(time_t epoch, uint32_t now) {
         return false;
       }
       controller.restoreOccurrence(s.zone, window.occurrence);
-      if (!persistAudit(s.zone, "recovery_summary", "open_window_not_resumed",
-                        config.zones[s.zone].mode == Mode::Hybrid
-                            ? Source::Hybrid : Source::Static)) return false;
+      if (!scheduleObservation(i,window,"omitted","open_window_not_resumed",1,-1,
+                               !s.date && from<int64_t(epoch)-7*86400)) return false;
     }
   }
   if (recoveryPending || uint32_t(now - checkpointAt) >= 60000) {
@@ -732,7 +821,7 @@ void handleCommand(JsonObjectConst c, bool local) {
 }
 String statusJson(bool csrfToken) {
   DynamicJsonDocument d(4096);
-  d["firmware"] = "0.3.1-experimental";
+  d["firmware"] = "0.3.2-experimental";
   d["guid"] = guid;
   d["revision"] = revision;
   d["clock_valid"] = clockReady();
@@ -1535,7 +1624,7 @@ void setup() {
       xTaskCreatePinnedToCore(networkTask, "portal-network", 12288, nullptr, 1,
                               nullptr, 0);
   }
-  Serial.printf("firmware=0.3.1 guid=%s physical=%u\n", guid.c_str(),
+  Serial.printf("firmware=0.3.2 guid=%s physical=%u\n", guid.c_str(),
                 IOT_PHYSICAL_OUTPUTS);
   previousEpoch = time(nullptr);
 }
@@ -1602,14 +1691,34 @@ void loop() {
     const bool observed = maintainOccurrences(epoch) && recoverSchedules(epoch, now);
     controller.clockValid(observed && !bootHold && outputs.allKnown());
     Window windows[4];
-    for (size_t i = 0; i < config.slotCount; ++i) {
-      const auto &s = config.slots[i];
-      auto w = observed ? evaluate(s, epoch, previousEpoch, revision) : Window{};
-      w.retired = w.open && occurrences.retired(w.begins);
-      if (w.open && (!windows[s.zone].open ||
-          (!w.retired && (w.startNow || windows[s.zone].retired))))
-        windows[s.zone] = w;
+    static Window candidates[maxSlots];
+    int selected[4]={-1,-1,-1,-1};
+    for (size_t i=0;i<config.slotCount;++i) {
+      const auto &s=config.slots[i];
+      auto w=observed ? evaluate(s,epoch,previousEpoch,revision) : Window{};
+      w.retired=w.open && occurrences.retired(w.begins);
+      candidates[i]=w;
     }
+    selectScheduleWindows(config.slots,config.slotCount,candidates,controller,
+                          config.count,runScheduleSlot,now,windows,selected);
+    for (size_t zone=0;zone<config.count;++zone) {
+      plannedScheduleSlot[zone]=selected[zone];
+      plannedScheduleWindow[zone]=windows[zone];
+    }
+    for (size_t i=0;i<config.slotCount;++i) {
+      const auto &s=config.slots[i];
+      const auto &w=candidates[i];
+      if (!config.zones[s.zone].enabled || config.zones[s.zone].mode==Mode::Dynamic ||
+          occurrences.contains(s.zone,w.occurrence) ||
+          (controller.run(s.zone).active && !runBlocksSchedule(controller.run(s.zone),now))) continue;
+      if (scheduleConflict(w,windows[s.zone],controller.run(s.zone).active)) {
+        if (!journal.consumeWindow(s.zone,w.occurrence,w.begins) ||
+            !scheduleObservation(i,w,"omitted",controller.run(s.zone).active
+                ? "active_run_conflict" : "schedule_overlap",2,selected[s.zone]))
+          controller.clockValid(false);
+      }
+    }
+    if (bootHold) controller.clockValid(false);
     controller.tick(now, windows);
     if (observed) previousEpoch = epoch;
   }

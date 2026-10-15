@@ -4,12 +4,12 @@ namespace irrigation {
 // Count fully closed windows since the durable checkpoint. Weekly history is
 // bounded to seven days; explicit dates are inspected even outside that range.
 struct RecoveryCount { unsigned windows = 0; bool truncated = false; };
-inline RecoveryCount unobserved(const Schedule &s, int64_t from, time_t until) {
-  RecoveryCount result;
+template<class Visit>
+inline bool visitUnobserved(const Schedule &s, int64_t from, time_t until,
+                            uint32_t revision, Visit visit) {
   if (!s.enabled || !s.durationSecond || s.durationSecond > 86400 ||
-      from <= 0 || int64_t(until) <= from) return result;
+      from <= 0 || int64_t(until) <= from) return true;
   const int64_t floor = int64_t(until) - 7 * 86400;
-  result.truncated = !s.date && from < floor;
   tm day{};
   localtime_r(&until, &day);
   for (unsigned offset = 0; offset < (s.date ? 1u : 9u); ++offset) {
@@ -29,8 +29,21 @@ inline RecoveryCount unobserved(const Schedule &s, int64_t from, time_t until) {
     if (!s.date && (start.tm_wday == 0 ? 7 : start.tm_wday) != s.weekday) continue;
     if (!s.date && int64_t(begins) < floor) continue;
     if (int64_t(begins) > from && int64_t(begins) + s.durationSecond <= int64_t(until))
-      ++result.windows;
+    {
+      Window window;
+      window.begins = int64_t(begins);
+      window.occurrence = occurrenceKey(s.id, civilDate(start), revision);
+      if (!visit(window)) return false;
+    }
   }
+  return true;
+}
+inline RecoveryCount unobserved(const Schedule &s, int64_t from, time_t until) {
+  RecoveryCount result;
+  if (!s.enabled || !s.durationSecond || s.durationSecond > 86400 ||
+      from <= 0 || int64_t(until) <= from) return result;
+  result.truncated = !s.date && from < int64_t(until)-7*86400;
+  visitUnobserved(s,from,until,0,[&](const Window &) { ++result.windows;return true; });
   return result;
 }
 } // namespace irrigation

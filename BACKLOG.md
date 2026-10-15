@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 14/10/2026 · entrega v0.13.0. Fonte canônica das próximas entregas.
+Atualizado: 15/10/2026 · portal v0.13.0 / firmware experimental v0.3.2. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -126,7 +126,7 @@ Código para acionamento condicionado a driver/provisionamento, estático/dinâm
 
 | ID | Próxima etapa de firmware | Estado |
 |---|---|---|
-| FW-03 | Completar recuperação de agendas perdidas, conflitos por agenda e retenção segura de ocorrências | Parcial: resumo na 0.2.1 e retenção na 0.3.1; conflitos/recuperação detalhados pendentes |
+| FW-03 | Completar recuperação de agendas perdidas, conflitos por agenda e retenção segura de ocorrências | Implementado no escopo 0.3.2: retenção/diagnóstico por agenda; target/bancada e histórico offline completo pendentes |
 | FW-04 | Validar HTTPS real, perfis locais, outbox/ACK e recursos TLS/NVS no ESP32 | Pendente |
 | FW-05 | Validar nó RS485, driver, perdas, alimentação e topologia 100 m | Pendente, depende HW-01 |
 | FW-06 | Provisionamento/segredos em produção e migração física de partições | Pendente |
@@ -152,3 +152,9 @@ Seis executáveis C++/UBSan e cinco fixtures de bytes/hash aprovados, fronteira 
 FW-03a implementado em software: journal versionado `occ_v2` com corte temporal e registros na mesma gravação, CRC/validação estrutural, migração conservadora que preserva chaves legadas, cache auxiliar e corte que nunca recua. Remove o esgotamento por 128 execuções acumuladas por conjunto; mantém teto explícito de 128 registros recentes globais, com falha conservadora em rajadas excessivas. Retenção de pelo menos 24 h, compactação em incrementos de hora depois de 25 h do corte. Execução híbrida ativa não é interrompida só por compactação. GUID, partições, configurações e históricos centrais preservados; sem downgrade automático.
 
 Sete executáveis C++/UBSan e cinco fixtures de bytes/hash; 16000 acionamentos simulados em 250 dias com compactações, duplicatas e reinícios; falhas antes/depois do commit, truncamento, corrupção, capacidade e corte monotônico testados. Sintaxe, 26 fixtures de contrato e 269 testes do portal aprovados. Build target desta revisão bloqueado antes de compilar por SSLCertVerificationError no download do core Arduino 3.3.8; nenhum build confirmado. Sem gravação ou validação física. Detalhes em iot/docs/VALIDACAO_FIRMWARE_V031.md. Próximo: FW-03b, conflitos/recuperação detalhados por agenda e integração dos registros.
+
+## Firmware experimental 0.3.2 — diagnóstico por agenda, 15/10/2026
+
+FW-03b no escopo delimitado: IDs originais de agenda/horário, ocorrência/janela nos eventos automáticos, conflitos com concorrente, enumeração de janelas sem observação e telemetria com event_id estável para deduplicação central. Híbrido segue a janela que iniciou o ciclo; fronteira de duração permite iniciar agenda estática consecutiva no mesmo tick. Registro legado de ocorrência mantém algoritmo/valores; GUID/partições/contrato preservados.
+
+Oito executáveis C++/UBSan, cinco fixtures de bytes/hash, sintaxe, 26 fixtures de contrato e 271 testes do portal aprovados. Metadados/deduplicação HTTP testados. Outbox16/auditoria64 continuam limitadas: saturação pode perder envio remoto, incrementa lost_events e não reenvia automaticamente o anel; não há promessa de histórico remoto infinito. Memória/latência e builds ESP32 não confirmados: PlatformIO ausente no runtime desta sessão. Sem gravação ou validação física. Ver iot/docs/VALIDACAO_FIRMWARE_V032.md. Próxima entrega FW-08: interface local completa.
