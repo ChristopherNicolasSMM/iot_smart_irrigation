@@ -6,7 +6,7 @@ Sistema de irrigação configurável para múltiplos ESP32, com portal central, 
 
 ## Estado atual
 
-Esta entrega contém portal central/local, simulador determinístico, persistência SQLite e cliente HTTP independente. Inclui propriedades e áreas, conjuntos por solenoide, agendas por dia, diagnóstico, integração HTTP(S), gestão de acesso e histórico filtrado com exportação CSV/JSON e arquivamento/transferência com histórico por propriedade e gestão auditada da fila. Inclui proteção por chave externa, migração/rotação, backup criptografado e recuperação em quarentena do portal/cliente, encaminhamento HTTP e ensaio de estabilidade documentado. Ainda não contém firmware ou comunicação com ESP32 real.
+Esta entrega contém portal central/local, simulador determinístico, persistência SQLite e cliente HTTP independente. Inclui propriedades e áreas, conjuntos por solenoide, agendas por dia, diagnóstico, integração HTTP(S), gestão de acesso e histórico filtrado com exportação CSV/JSON e arquivamento/transferência com histórico por propriedade e gestão auditada da fila. Inclui proteção por chave externa, migração/rotação, backup criptografado e recuperação em quarentena do portal/cliente, encaminhamento HTTP e ensaio de estabilidade documentado. Contém agora firmware experimental 0.2 em [iot/firmware](iot/firmware/README.md); inclui controlador, portal local, cliente HTTPS e RS485; validação física e paridade completa permanecem pendentes.
 
 ## Executar
 
@@ -31,6 +31,7 @@ Sequência solicitada: **documentação → portal e simulação → avaliação
 - [Contrato JSON Schema/OpenAPI e fixtures](contracts/README.md)
 - [Roteiro de conferência do portal](docs/ROTEIRO_PORTAL_V013.md)
 - [Preparação para avaliar ESP32](docs/PREPARACAO_ESP32.md)
+- [Hardware: sensores, portas, fontes e fluxos](iot/docs/README.md)
 - [Operação segura: chave, migração, rotação e recuperação](docs/OPERACAO_SEGURA.md)
 
 - [Requisitos e regras de irrigação](docs/REQUISITOS.md)
@@ -69,4 +70,4 @@ O GitHub conectado já confirmou acesso de leitura e escrita ao repositório. In
 
 ## Próxima sequência
 
-Entregas **1–3 e 4–6 implementadas no piloto**. Conferir v0.13 no ambiente do usuário, revisar as evidências e iniciar avaliação HW-01/HW-02: placa/flash, sensores, solenoides, drivers/fonte, pinagem e limites. Firmware será preparado após essas decisões. Ver docs/PREPARACAO_ESP32.md e BACKLOG.md.
+Entregas **1–3 e 4–6 implementadas no piloto**. Conferir v0.13 no ambiente do usuário, revisar as evidências e iniciar avaliação HW-01/HW-02: placa/flash, sensores, solenoides, drivers/fonte, pinagem e limites. Firmware experimental 0.2 foi iniciado por autorização do usuário; fechar circuito/recursos e executar bancada antes de campo. Ver docs/PREPARACAO_ESP32.md e BACKLOG.md.

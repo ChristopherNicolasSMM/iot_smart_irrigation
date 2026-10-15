@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-14",
+  "firmware": "0.2.0-experimental",
+  "physical_validation": false,
+  "platformio": "6.1.18",
+  "platform": "espressif32@6.10.0",
+  "native_executables": 4,
+  "configuration_hash_fixtures": 5,
+  "portal_tests_passed": 269,
+  "contract_fixtures_passed": 26,
+  "builds": {
+    "default": {
+      "esp32_matrix": {
+        "success": true,
+        "static_ram_bytes": 34344,
+        "flash_bytes": 492441
+      },
+      "esp32_sensor_bench": {
+        "success": true,
+        "static_ram_bytes": 34576,
+        "flash_bytes": 506257
+      },
+      "esp32_remote_node": {
+        "success": true,
+        "static_ram_bytes": 34592,
+        "flash_bytes": 496713
+      }
+    },
+    "synthetic_provisioning_compile_only": {
+      "esp32_matrix": {
+        "success": true,
+        "static_ram_bytes": 55156,
+        "flash_bytes": 1035733
+      },
+      "esp32_sensor_bench": {
+        "success": true,
+        "static_ram_bytes": 55316,
+        "flash_bytes": 1046681
+      },
+      "esp32_remote_node": {
+        "success": true,
+        "static_ram_bytes": 54192,
+        "flash_bytes": 890289
+      }
+    }
+  }
+}

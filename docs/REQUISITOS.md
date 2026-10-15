@@ -183,3 +183,7 @@ Entrega 1–3 aprovada: proteção de estado/segredos da fila por chave externa 
 ## Contrato, tempo e conferência — adendo v0.13
 
 Etapas 4–6 entregues em software: schemas/OpenAPI e fixtures do protocolo HTTP v1, validação/hash compartilhados, cenários temporais raros e recuperação de datas específicas antigas sem execução tardia, conferência do portal em navegador desktop/móvel e roteiro de validação do usuário. Recuperação semanal continua delimitada com resumo explícito; não inferir meses de ocorrências ou revisão antiga sem prova. Firmware/hardware continuam posteriores à revisão e aprovação HW-01/HW-02. Evidências e limites em VALIDACAO_V013.md.
+
+## Firmware experimental — adendo 14/10/2026
+
+Usuário autorizou iniciar firmware antes do fechamento físico. Base HD-38/DS18B20, sensores opcionais por conjunto, matriz com energia e dados até pontos remotos de 100 m. Firmware 0.2 implementa primeiras rotinas com limites explícitos, sem substituir requisitos completos do piloto. Ver iot/docs/VALIDACAO_FIRMWARE_V02.md para divergências/pendências; hardware e fonte continuam em avaliação.

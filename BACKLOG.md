@@ -27,7 +27,7 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 | P1-06 | P1 | Backup/restauração e proteção de segredos | Entregue/testado no piloto v0.12 | Chave externa, cifragem de estado/fila, migração/rotação e backup/recuperação do cliente; limites em OPERACAO_SEGURA.md |
 | P1-07 | P1 | Ensaio prolongado, desempenho e refatoração | Entregue no ensaio delimitado v0.12; alerta nativo a reproduzir | 300 s de carga + 7 dias virtuais, métricas/filas/integridade e módulos separados; validação prolongada real posterior |
 | P1-08 | P1 | Avisos prévios de sobreposição e limites hidráulicos | Parcial: software entregue v0.6 | Editor identifica sobreposição/capacidade; dimensionamento hidráulico depende de HW-01 |
-| P1-09 | P1 | Calibração e tratamento de dados do sensor | Hardware a definir | Unidade relativa/volumétrica correta, qualidade e calibração explícitas |
+| P1-09 | P1 | Calibração e tratamento de dados do sensor | Parcial: HD-38/DS18B20 como base; ensaio pendente | Unidade relativa/volumétrica correta, qualidade e calibração explícitas |
 | P1-10 | P1 | Expandir testes temporais raros e recuperação longa | Entregue/testado nos cenários delimitados v0.13 | Lord Howe, Chatham, Apia, meia-noite, 90 dias e cliente persistido; semanal limitado a 7 dias com resumo explícito |
 | P1-11 | P1 | Encaminhamento/integração dos dados do cliente HTTP para terceiros | Entregue/testado v0.12 | Perfil por GUID, IDs estáveis/origem, rastros de salto, deduplicação/rollback e controle independente |
 | P1-12 | P1 | Consolidar schemas/OpenAPI e contrato versionado | Entregue/testado v0.13 | JSON Schema/OpenAPI de máquina, 26 fixtures, validação compartilhada/hash e exemplos executáveis; API humana no manual |
@@ -36,10 +36,10 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 
 | ID | Prioridade | Item | Dependência | Critério de conclusão |
 |---|---|---|---|---|
-| HW-01 | P2 | Escolher ESP32, flash, sensores, válvulas, drivers e fonte | Avaliação de hardware | Lista e pinagem aprovadas; estado seguro e capacidades definidos |
+| HW-01 | P2 | Escolher ESP32, flash, sensores, válvulas, drivers e fonte | Parcial: proposta documentada em iot/docs | Lista e pinagem aprovadas; estado seguro e capacidades definidos |
 | HW-02 | P2 | Medir memória, TLS, armazenamento e limites de agenda/fila | HW-01/protocolo | Limites do Node não presumidos para ESP32 |
-| FW-01 | P2 | Firmware C++: drivers, controlador local e portal leve | HW-01/HW-02 | Build reproduzível e mesmas regras verificadas |
-| FW-02 | P2 | Compilação/bancada/campo com usuário | FW-01 | Evidências físicas de boot, duração, sensores, falhas e retomada |
+| FW-01 | P2 | Firmware C++: drivers, controlador local e portal leve | Parcial: experimental 0.2 compilado; desenvolvimento autorizado | Build reproduzível e mesmas regras verificadas |
+| FW-02 | P2 | Compilação/bancada/campo com usuário | Parcial: build aprovado, bancada/campo pendentes | Evidências físicas de boot, duração, sensores, falhas e retomada |
 | EX-01 | P3 | MQTT e OTA | Piloto físico estável | Necessidade definida; confirmação/recuperação preservadas |
 | EX-02 | P3 | RS485, vazão, pressão e intertravamento de bomba | Hardware/necessidade | Drivers e proteções validados |
 | EX-03 | P3 | Hospedagem, stack de produção e eventual novo frontend | Piloto validado | Decisão de arquitetura e implantação revisadas |
@@ -101,3 +101,42 @@ Retorno do usuário na v0.12: 209 aprovados e 6 falhas no Windows. Cinco ocorrer
 ## Política de atualização
 
 Toda entrega funcional deve atualizar status, evidência, limitações, versão e próximos itens neste arquivo. Não marcar validação visual/física como concluída com base somente em testes de código. Manter IDs estáveis, registrar novos pedidos e preservar itens pendentes. Progresso dos relatórios por versão complementa este backlog, sem substituí-lo.
+
+## Planejamento IoT — 14/10/2026
+
+Criada pasta iot/docs com índice, decisões/pendências IOT-P01..12, pinagem preliminar condicionada ao ESP32 clássico, fontes por cálculo, materiais mínimos, diagramas e bibliotecas propostas. Base solicitada: HD-38 do Baú e DS18B20; sensores opcionais por conjunto reafirmados. Sem firmware/dependências novas ou mudança de versão do portal. Verificação: links locais e git diff --check; sem validação física/compilação. Fonte/relé/válvula/placa/cabos ainda não aprovados; exemplos de corrente não são especificações de compra.
+
+### Adendo: cabos de 100 m e placa proposta
+
+Usuário informou válvulas 12 V (AC/DC ainda pendente), Cat5 externo até 100 m e simultaneidade 1 aceitável/até 4 desejada quando possível. Proposto DevKitC V4/WROOM-32E; GPIO e fonte seguem condicionais. Em iot/docs/CABOS_E_PLACA.md: queda resistiva, restrição de AO/1-Wire longo e alternativas de aquisição/alimentação local ou RS485. HW-01 permanece parcial; confirmar corrente, cabo cobre/bitola, topologia e energia nos pontos remotos. Verificação documental git diff --check, sem validação física.
+
+### Matriz com energia e dados no mesmo cabo
+
+Confirmado: ambos sensores/válvulas até 100 m, energia exclusivamente da matriz. Proposta condicionada de ramais independentes RS485 + distribuição 24 V e conversão local para 12 V/lógica, aquisição local dos HD-38/DS18B20 e relé com timeout local. Sem implementar firmware ou protocolo de nó. EX-02 passa a avaliação de necessidade dentro de HW-01, não apenas evolução futura. Anúncio de válvula informa pressão 0,02–0,8 MPa na indexação; corrente e AC/DC permanecem pendentes. Decisão/pinout anterior de conexão direta só vale para protótipo curto, não para 100 m. Ver iot/docs/CABOS_E_PLACA.md.
+
+## Firmware inicial autorizado — 14/10/2026
+
+Usuário autorizou explicitamente iniciar firmware/PlatformIO com hardware ainda parcial. FW-01 iniciado, não concluído: iot/firmware com perfil matriz sem acionamento, perfil sensores de bancada opcionais, GUID NVS e primitiva monotônica testável. Drivers remotos RS485, agendas, autenticação, HTTPS/ACK/hash, persistência de logs/calibração e portal local permanecem pendentes. HW-01/HW-02/FW-02 não concluídos. Não há saídas físicas habilitadas nem ensaio de campo. Evidência em iot/docs/FIRMWARE_INICIAL.md.
+
+## Firmware experimental 0.2 — 14/10/2026
+
+Conferência final da continuação: três builds padrão repetidos com sucesso; quatro executáveis C++/UBSan, cinco fixtures de bytes/hash, sintaxe, 26 fixtures de contrato e 269 testes do portal novamente aprovados. Entrega local documentada, sem validação física ou publicação remota nesta conferência.
+
+Código para acionamento condicionado a driver/provisionamento, estático/dinâmico/híbrido, configuração/hash/ACK, portal local admin/operador/CSRF, cliente HTTPS/Bearer e RS485 com lease/token de boot. Sensores opcionais, bindings por IDs estáveis, GUID NVS e registros limitados. Três perfis compilados padrão e com provisionamento sintético; quatro executáveis C++/UBSan, cinco fixtures de bytes/hash, 26 fixtures do contrato e 269 testes existentes do portal aprovados. FW-01/FW-02 parciais: sem ESP32 real→portal, navegador na placa, relé/solenoide, 100 m ou ensaio físico. Não implementar/afirmar produção a partir de build.
+
+| ID | Próxima etapa de firmware | Estado |
+|---|---|---|
+| FW-03 | Completar recuperação de agendas perdidas, conflitos por agenda e retenção segura de ocorrências | Pendente; limites iniciais em VALIDACAO_FIRMWARE_V02.md |
+| FW-04 | Validar HTTPS real, perfis locais, outbox/ACK e recursos TLS/NVS no ESP32 | Pendente |
+| FW-05 | Validar nó RS485, driver, perdas, alimentação e topologia 100 m | Pendente, depende HW-01 |
+| FW-06 | Provisionamento/segredos em produção e migração física de partições | Pendente |
+
+Limites: UTC/BRT atual, datas até 2037, 64 horários expandidos, 128 ocorrências/conjunto, outbox 16, auditoria 64, uma UART RS485. Nó final econômico ainda não escolhido; perfil remoto usa ESP32 como referência. Firmware 0.2 é versão independente do portal 0.13; contrato remoto v1 preservado. Documentação: iot/firmware/README.md e iot/docs/VALIDACAO_FIRMWARE_V02.md.
+
+## Firmware experimental 0.2.1 — 15/10/2026
+
+FW-03 avançou parcialmente: checkpoint NVS aditivo por revisão, resumo local de janelas encerradas durante interrupção, datas específicas antigas e recorte semanal de sete dias. Nenhuma recuperação aciona saída; retrocesso bloqueia avaliação sem recuar checkpoint. Resumo distingue observação ausente de irrigação comprovadamente perdida e pode repetir na queda durante gravação. Cinco executáveis C++/UBSan e cinco fixtures de bytes/hash aprovados; sintaxe, 26 fixtures do contrato e 269 testes do portal aprovados. Compilação ESP32 desta versão bloqueada no download do framework Arduino: checksum divergente no primeiro espelho e HTTP 403 nos seguintes; PlatformIO terminou com PackageException/código 1 antes de compilar. Retenção segura das 128 ocorrências, conflitos por agenda, testes reais NVS/HTTPS/RS485 e campo continuam pendentes. Ver iot/docs/VALIDACAO_FIRMWARE_V021.md. Entrega local; sem publicação remota.
+
+## Firmware experimental 0.2.2 — portal embutido, 15/10/2026
+
+Confirmado portal local já existente e separado em iot/firmware/portal/LocalPortalPage.h, incluído pelo firmware em flash PROGMEM e servido por send_P. Sem partição de arquivos ou uploadfs. Documentadas compilação/upload/acesso e condições de provisionamento. Portal central Node.js permanece separado; interface local atual oferece estado e teste/parada, sem editor visual completo. Publicação solicitada pelo usuário inclui a documentação IoT e firmware 0.2/0.2.1 antes locais. Cinco executáveis nativos C++/UBSan e cinco fixtures de bytes/hash aprovados; página compila em host com stub PROGMEM e JavaScript passa no node --check. Sintaxe do portal central, 26 fixtures de contrato e 269 testes aprovados. Isso não equivale a build ESP32: framework bloqueado nos downloads anteriores e PlatformIO ausente no ambiente atual. Sem placa conectada, gravação ou validação física.

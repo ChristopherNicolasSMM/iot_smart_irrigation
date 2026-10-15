@@ -1,6 +1,6 @@
 # Preparação para avaliar ESP32
 
-Documento para a etapa seguinte, depois das entregas consolidadas 1–3 e 4–6. Não escolhe componentes, pinos, drivers nem implementa firmware. O usuário confirmou a v0.12.1 no Windows; v0.13 tem evidências de software/navegador local e aguarda revisão no ambiente do usuário.
+Documento para a etapa seguinte, depois das entregas consolidadas 1–3 e 4–6. A proposta de sensores, GPIO, alimentação e fluxos foi iniciada em [iot/docs](../iot/docs/README.md); placa, drivers, válvula e medições permanecem pendentes. Não implementa firmware. O usuário confirmou a v0.12.1 no Windows; v0.13 tem evidências de software/navegador local e aguarda revisão no ambiente do usuário.
 
 ## Informações necessárias
 
@@ -35,3 +35,7 @@ Documento para a etapa seguinte, depois das entregas consolidadas 1–3 e 4–6.
 5. Compilar, validar bancada e campo com o usuário (FW-02). Registrar evidências; sem elas não declarar hardware funcional.
 
 MQTT/OTA, RS485, vazão/pressão e intertravamento de bomba permanecem evoluções no backlog, salvo necessidade física identificada na avaliação. Hospedagem, KMS e ensaio contínuo prolongado são decisões de implantação; o alerta nativo do ensaio v0.12 ainda deve ser reproduzido/avaliado no ambiente escolhido.
+
+## Desenvolvimento autorizado antes da bancada
+
+Em 14/10/2026, usuário autorizou explicitamente a implementação inicial com hardware ainda parcial. Firmware 0.2 compilado e testes de núcleo/contrato registrados em [../iot/docs/VALIDACAO_FIRMWARE_V02.md](../iot/docs/VALIDACAO_FIRMWARE_V02.md). Isso não aprova pinagem/fonte/cabo nem encerra HW-01/HW-02/FW-02.

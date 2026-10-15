@@ -6,3 +6,9 @@ backups/
 *.irrbak
 secrets/
 *.vault-key.json
+
+# PlatformIO/local firmware settings
+iot/firmware/.pio/
+iot/firmware/.vscode/
+iot/firmware/include/secrets.h
+iot/firmware/include/provision.h

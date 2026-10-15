@@ -1,0 +1,22 @@
+name: Firmware experimental
+on:
+  push:
+    paths: ['iot/firmware/**', 'contracts/fixtures/**', '.github/workflows/firmware.yml']
+  pull_request:
+    paths: ['iot/firmware/**', 'contracts/fixtures/**', '.github/workflows/firmware.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: python -m pip install platformio==6.1.18
+      - run: python iot/firmware/scripts/test-native.py
+      - run: pio run -d iot/firmware -e esp32_matrix -e esp32_sensor_bench -e esp32_remote_node
