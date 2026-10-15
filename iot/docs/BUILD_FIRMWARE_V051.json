@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-15",
+  "firmware": "0.5.1-experimental",
+  "platformio": "6.1.19",
+  "platform": "pioarduino 55.03.38-1",
+  "arduino": "3.3.8",
+  "idf": "5.5.4",
+  "board": "esp32dev",
+  "tls_verification": true,
+  "checksum_verification": true,
+  "scope": "Compile/link, flash-layout and merged app bytes. No upload or hardware execution. Static RAM does not measure runtime heap/stack.",
+  "builds": [
+    {
+      "role": "esp32_matrix",
+      "profile": "default",
+      "ram_static_bytes": 66792,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1258368,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_sensor_bench",
+      "profile": "default",
+      "ram_static_bytes": 66936,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1279012,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_remote_node",
+      "profile": "default",
+      "ram_static_bytes": 61972,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1152021,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_matrix",
+      "profile": "synthetic_compile_only",
+      "ram_static_bytes": 66864,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1265608,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_sensor_bench",
+      "profile": "synthetic_compile_only",
+      "ram_static_bytes": 66936,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1279648,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_remote_node",
+      "profile": "synthetic_compile_only",
+      "ram_static_bytes": 61972,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1152965,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    }
+  ],
+  "known_warnings": [
+    "OneWire 2.3.8 uses ESP-IDF GPIO macro comparing unsigned pin >= 0; no warning suppressed.",
+    "Reserved partition named littlefs retains legacy subtype spiffs (0x82); table unchanged, unused by embedded portal."
+  ]
+}

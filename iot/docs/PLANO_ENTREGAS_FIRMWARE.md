@@ -15,3 +15,5 @@ FW-03 permanece parcial: a 0.2.1 já trouxe resumo de observação e bloqueio de
 A primeira bancada deve partir de um build confirmado da versão escolhida, provisionamento privado e saídas desabilitadas. Começar com portal/sensores e depois driver sem válvula. Ensaios elétricos/hidráulicos, HTTPS real e 100 m continuam em FW-02/FW-04/FW-05/HW-01/HW-02. Não há placa conectada a este ambiente, nem acesso MCP à placa confirmado.
 
 MQTT, OTA e fusos globais ficam fora desta primeira sequência, salvo mudança explícita de escopo.
+
+Conferência 0.5.1: seis builds alvo aprovados, com tempo64 e endereços de gravação corrigidos/verificados. Próximo marco é a bancada de Wi-Fi/portal do usuário; não equivale a validação física. Ver VALIDACAO_FIRMWARE_V051.md.

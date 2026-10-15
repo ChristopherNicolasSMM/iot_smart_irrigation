@@ -1054,7 +1054,7 @@ void serialProvision() {
 
 String statusJson(bool csrfToken,int role=0) {
   DynamicJsonDocument d(4096);
-  d["firmware"] = "0.5.0-experimental";
+  d["firmware"] = "0.5.1-experimental";
   d["wifi_connected"] = WiFi.status() == WL_CONNECTED;
   d["ip"] =
       WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : String();
@@ -1976,7 +1976,7 @@ void setup() {
       xTaskCreatePinnedToCore(networkTask, "portal-network", 12288, nullptr, 1,
                               nullptr, 0);
   }
-  Serial.printf("firmware=0.5.0 guid=%s physical=%u\n", guid.c_str(),
+  Serial.printf("firmware=0.5.1 guid=%s physical=%u\n", guid.c_str(),
                 IOT_PHYSICAL_OUTPUTS);
   Serial.println(
       "USB provisioning: PROVISION? or PROVISION {expected_revision,settings}; "

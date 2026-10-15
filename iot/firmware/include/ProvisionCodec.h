@@ -1,7 +1,6 @@
 #pragma once
 #include "ProvisionSettings.h"
 #include <ArduinoJson.h>
-#include <utility>
 namespace irrigation {
 inline void provisionJson(JsonObject obj, const ProvisionSettings &p,
                           bool secrets) {
@@ -20,11 +19,11 @@ inline void provisionJson(JsonObject obj, const ProvisionSettings &p,
     obj["has_portal_ca"] = !p.portalCa.empty();
   }
   JsonObject bindings = obj.createNestedObject("bindings");
-  for (auto pair : {std::make_pair("actuators", &p.actuators),
-                    std::make_pair("moisture", &p.moisture),
-                    std::make_pair("temperature", &p.temperature)}) {
-    JsonArray array = bindings.createNestedArray(pair.first);
-    for (const auto &id : *pair.second)
+  const char *names[] = {"actuators", "moisture", "temperature"};
+  const std::array<std::string, 4> *values[] = {&p.actuators, &p.moisture, &p.temperature};
+  for (size_t i = 0; i < 3; ++i) {
+    JsonArray array = bindings.createNestedArray(names[i]);
+    for (const auto &id : *values[i])
       array.add(id.c_str());
   }
 }

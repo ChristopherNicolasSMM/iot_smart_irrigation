@@ -34,3 +34,5 @@ PlatformIO 6.1.19 foi instalado nesta sessão. Tentativa do perfil esp32_matrix 
 NVS de segredos permanece sem cifragem de flash/NVS, secure boot e eliminação comprovada de cópias antigas. HTTP Basic local não cifra credenciais; uso em LAN de confiança. Backup seguro/rotação/revogação central, hardening de produção, migração física e testes de queda de energia/rollback continuam pendentes em FW-06. Não declarar provisionamento de produção concluído.
 
 A primeira bancada do usuário será build/upload, Wi-Fi 2,4 GHz, portal admin/operador e persistência ao reiniciar; verificar tempo de associação/IP, reabertura pelo roteador e recuperação USB. Depois: TLS/NVS/memória, sensores/relés e RS485. Sem dispositivo físico conectado nesta entrega.
+
+Atualização posterior, 0.5.1: downloads liberados e seis builds alvo confirmados; corrigidos offset do aplicativo/imagem auxiliar antes de upload. Use 0.5.1 ou posterior e consulte VALIDACAO_FIRMWARE_V051.md. O bloqueio descrito acima registra a tentativa da 0.5.0; bancada permanece pendente.

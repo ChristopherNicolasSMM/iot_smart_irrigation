@@ -1,4 +1,4 @@
-# Firmware experimental 0.5.0
+# Firmware experimental 0.5.1
 
 ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicitamente autorizado pelo usuário com hardware ainda em avaliação. Compilação não comprova funcionamento físico.
 
@@ -139,3 +139,7 @@ Wi-Fi, senhas, CA, token, GPIO, bindings e presença física de sensores continu
 Rede, senhas locais, origem HTTPS/token/CA e bindings podem ser mantidos pela GUI/USB. Primeiro cadastro/recuperação usa USB nos primeiros três minutos após reset, com controlador ocioso; não há AP aberto ou senha padrão. Alteração válida só entra após reiniciar; erro de rede/senha é recuperado por USB sem apagar dados. Campos secretos omitidos mantêm valores; remoção explícita por string vazia (admin não pode ser removido). Destino central só muda com outbox vazia. Perfil inválido bloqueia rede/automação até recuperação. GPIO, sensores fisicamente presentes, polaridade e habilitação elétrica continuam compilados.
 
 Assistente: `python iot/firmware/scripts/provision-device.py --port COM5`; status/IP: mesmo comando com --status. Requer pyserial e monitor fechado. Portas podem reiniciar a placa ao abrir; mensagem de IP também disponível no Serial/roteador. Perfil/NVS/GUID persistem em upload comum. Ver [VALIDACAO_FIRMWARE_V05.md](../docs/VALIDACAO_FIRMWARE_V05.md) para API, precedência, testes e limites. FW-06 permanece parcial: cifragem/secure boot, gestão de produção e migração física não estão concluídos.
+
+## Gravação corrigida — 0.5.1
+
+Use 0.5.1 ou posterior para o próximo upload. O post-script mantém o aplicativo em 0x50000 e remove a imagem boot_app0 que antes incidia na NVS. Não usar os binários gerados anteriormente pela plataforma 55.03.38-1 sem essa correção. O comando normal de upload usa imagens separadas; firmware.factory.bin não é atualização que preserva NVS. Não executar erase_flash. Evidência e explicação em [VALIDACAO_FIRMWARE_V051.md](../docs/VALIDACAO_FIRMWARE_V051.md).

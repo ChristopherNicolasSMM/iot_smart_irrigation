@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 15/10/2026 · portal v0.13.0 / firmware experimental v0.5.0. Fonte canônica das próximas entregas.
+Atualizado: 15/10/2026 · portal v0.13.0 / firmware experimental v0.5.1. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -38,8 +38,8 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 |---|---|---|---|---|
 | HW-01 | P2 | Escolher ESP32, flash, sensores, válvulas, drivers e fonte | Parcial: proposta documentada em iot/docs | Lista e pinagem aprovadas; estado seguro e capacidades definidos |
 | HW-02 | P2 | Medir memória, TLS, armazenamento e limites de agenda/fila | HW-01/protocolo | Limites do Node não presumidos para ESP32 |
-| FW-01 | P2 | Firmware C++: drivers, controlador local e portal leve | Parcial: experimental 0.2 compilado; desenvolvimento autorizado | Build reproduzível e mesmas regras verificadas |
-| FW-02 | P2 | Compilação/bancada/campo com usuário | Parcial: build aprovado, bancada/campo pendentes | Evidências físicas de boot, duração, sensores, falhas e retomada |
+| FW-01 | P2 | Firmware C++: drivers, controlador local e portal leve | Parcial: experimental 0.5.1 com seis builds aprovados; bancada pendente | Build reproduzível e mesmas regras verificadas |
+| FW-02 | P2 | Compilação/bancada/campo com usuário | Parcial: seis builds 0.5.1 aprovados, bancada/campo pendentes | Evidências físicas de boot, duração, sensores, falhas e retomada |
 | EX-01 | P3 | MQTT e OTA | Piloto físico estável | Necessidade definida; confirmação/recuperação preservadas |
 | EX-02 | P3 | RS485, vazão, pressão e intertravamento de bomba | Hardware/necessidade | Drivers e proteções validados |
 | EX-03 | P3 | Hospedagem, stack de produção e eventual novo frontend | Piloto validado | Decisão de arquitetura e implantação revisadas |
@@ -130,7 +130,7 @@ Código para acionamento condicionado a driver/provisionamento, estático/dinâm
 | FW-04 | Validar HTTPS real, perfis locais, outbox/ACK e recursos TLS/NVS no ESP32 | Pendente |
 | FW-05 | Validar nó RS485, driver, perdas, alimentação e topologia 100 m | Pendente, depende HW-01 |
 | FW-06 | Provisionamento/segredos em produção e migração física de partições | Parcial 0.5.0: NVS/GUI/USB e recuperação; cifragem/produção, migração física e bancada pendentes |
-| FW-08 | Portal local completo embutido | Implementado no escopo 0.4.0; navegador/API simulada aprovados, target/bancada pendentes |
+| FW-08 | Portal local completo embutido | Implementado no escopo 0.4.0; navegador/API simulada e build alvo 0.5.1 aprovados, bancada pendente |
 
 Limites: UTC/BRT atual, datas até 2037, 64 horários expandidos, 128 ocorrências/conjunto, outbox 16, auditoria 64, uma UART RS485. Nó final econômico ainda não escolhido; perfil remoto usa ESP32 como referência. Firmware 0.2 é versão independente do portal 0.13; contrato remoto v1 preservado. Documentação: iot/firmware/README.md e iot/docs/VALIDACAO_FIRMWARE_V02.md.
 
@@ -175,3 +175,11 @@ FW-06 avançou: primeiro cadastro/recuperação por USB (janela de três minutos
 Dez executáveis C++/UBSan, cinco fixtures de bytes/hash, adaptador ArduinoJson real no host, quatro testes Python do protocolo USB, 283 testes Node, sintaxe e 26 fixtures de contrato aprovados. Navegador Chromium 149: 17 cenários HTTP simulados e inspeção desktop/celular, sem erros JS/transbordamento. Build ESP32 tentado com PlatformIO 6.1.19 e repetido com CA do sistema: bloqueado antes de compilar por SSLCertVerificationError no download do core 3.3.8; nenhum build alvo confirmado. Sem Wi-Fi/USB/HTTP Basic/NVS reais ou validação física. Evidências e limites: iot/docs/VALIDACAO_FIRMWARE_V05.md.
 
 Roteiro para o próximo passo do usuário: iot/docs/PRIMEIRO_ACESSO_ESP32.md (build/upload, assistente USB, Wi-Fi 2,4 GHz, IP e portal admin/operador). FW-06 permanece parcial: cifragem de segredos/secure boot, rotação/revogação central de produção, backup/rollback e migração física pendentes. Próximo marco é bancada de conexão/acesso do usuário; não ampliar recursos físicos antes dos resultados.
+
+## Firmware experimental 0.5.1 — build alvo e gravação corrigida, 15/10/2026
+
+Bloqueio de certificado superado no ambiente de compilação com autoridades já confiáveis do sistema nos bundles Python efetivos, mantendo TLS/checksum. O build revelou endereço de upload incompatível: plataforma assumia 0x10000/boot_app0 em 0xe000, dentro da NVS, enquanto a factory começa em 0x50000. Corrigido por post-script do projeto, sem mudar tabela/SDK ou apagar dados. Imagem auxiliar removida também dos argumentos; offset reaplicado após checkprogsize. Binários 0.5.0 anteriores não devem ser usados para upload. Removido aviso de temporário na serialização dos bindings.
+
+Seis builds 0.5.1 aprovados (três perfis padrão + três sintéticos), com conferência do aplicativo byte a byte em 0x50000 e imagens auxiliares fora das partições de dados. Time64 compilado no alvo. Dez executáveis C++/UBSan, cinco fixtures de bytes/hash, adaptador ArduinoJson, sete testes Python (quatro USB/três layout), 283 testes Node, sintaxe e 26 fixtures de contrato aprovados. Persistem avisos na dependência OneWire; recursos estáticos e limites em iot/docs/BUILD_FIRMWARE_V051.json e VALIDACAO_FIRMWARE_V051.md. Nenhum upload ou teste físico; binários de ensaio descartados.
+
+Próximo marco: usuário compilar/gravar 0.5.1 e testar Wi-Fi 2,4 GHz, USB e portal admin/operador, com saídas padrão desabilitadas. Usar upload normal do PlatformIO; factory.bin completo não preserva NVS em atualização. Migração física, memória dinâmica/TLS/NVS reais e FW-06 de produção continuam pendentes. Guia de primeiro acesso atualizado e diagnóstico de certificados incluído.

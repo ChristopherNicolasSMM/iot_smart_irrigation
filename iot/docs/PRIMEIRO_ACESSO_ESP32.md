@@ -1,6 +1,8 @@
-# Primeiro build, Wi-Fi e acesso ao portal — firmware 0.5.0
+# Primeiro build, Wi-Fi e acesso ao portal — firmware 0.5.1
 
 Roteiro para ESP32 clássico WROOM-32/esp32dev. Esta entrega foi verificada em software; os passos abaixo ainda precisam ser executados na sua placa. Para este primeiro teste, use somente USB e mantenha as saídas físicas desabilitadas. Não é necessário conectar sensores ou válvulas.
+
+**Use a versão 0.5.1 ou posterior**, que corrige os endereços de gravação da plataforma. Não use binários antigos 0.5.0. Upload normal preserva as regiões de dados da tabela atual; não gravar firmware.factory.bin inteiro em placa que precisa preservar NVS.
 
 ## 1. Atualizar e compilar
 
@@ -16,7 +18,7 @@ O perfil matriz serve para testar Wi-Fi/portal sem sensores locais. Use esp32_se
 
 O provisionamento USB dispensa criar provision.h para este teste: os padrões não contêm Wi-Fi/senhas nem habilitam saídas. Se já existir provision.h privado, confira IOT_PHYSICAL_OUTPUTS=0. Um perfil prov_v1 já salvo na placa prevalece sobre as credenciais e bindings compilados; não muda por novo upload comum.
 
-Se o download do core falhar com CERTIFICATE_VERIFY_FAILED, o compilador ainda não foi executado. Verifique data/hora do computador e cadeia de certificados do Python/proxy corporativo; mantenha TLS validado. Não altere o SDK fixado para tentar esconder esse erro. Na sessão de desenvolvimento, esse download continuou bloqueado, inclusive com a cadeia de certificados do sistema.
+Se o download do core falhar com CERTIFICATE_VERIFY_FAILED, o compilador ainda não foi executado. Verifique data/hora do computador e cadeia de certificados do Python/proxy corporativo; mantenha TLS validado. Não altere o SDK fixado para tentar esconder esse erro. Esse bloqueio foi superado na conferência 0.5.1 configurando a confiança nos bundles Python efetivamente usados; veja [CERTIFICADOS_COMPILACAO_ESP32.md](CERTIFICADOS_COMPILACAO_ESP32.md).
 
 ## 2. Gravar
 

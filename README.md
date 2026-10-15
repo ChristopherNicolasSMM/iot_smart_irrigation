@@ -6,7 +6,7 @@ Sistema de irrigação configurável para múltiplos ESP32, com portal central, 
 
 ## Estado atual
 
-Esta entrega contém portal central/local, simulador determinístico, persistência SQLite e cliente HTTP independente. Inclui propriedades e áreas, conjuntos por solenoide, agendas por dia, diagnóstico, integração HTTP(S), gestão de acesso e histórico filtrado com exportação CSV/JSON e arquivamento/transferência com histórico por propriedade e gestão auditada da fila. Inclui proteção por chave externa, migração/rotação, backup criptografado e recuperação em quarentena do portal/cliente, encaminhamento HTTP e ensaio de estabilidade documentado. Contém agora firmware experimental 0.5.0 em [iot/firmware](iot/firmware/README.md); inclui controlador, portal local embutido com editor visual de agendas/calibração/eventos, base temporal de 64 bits, cliente HTTPS e RS485; validação física e paridade completa permanecem pendentes.
+Esta entrega contém portal central/local, simulador determinístico, persistência SQLite e cliente HTTP independente. Inclui propriedades e áreas, conjuntos por solenoide, agendas por dia, diagnóstico, integração HTTP(S), gestão de acesso e histórico filtrado com exportação CSV/JSON e arquivamento/transferência com histórico por propriedade e gestão auditada da fila. Inclui proteção por chave externa, migração/rotação, backup criptografado e recuperação em quarentena do portal/cliente, encaminhamento HTTP e ensaio de estabilidade documentado. Contém agora firmware experimental 0.5.1 em [iot/firmware](iot/firmware/README.md); inclui controlador, portal local embutido com editor visual de agendas/calibração/eventos, base temporal de 64 bits, cliente HTTPS e RS485; validação física e paridade completa permanecem pendentes.
 
 ## Executar
 
@@ -72,4 +72,4 @@ O GitHub conectado já confirmou acesso de leitura e escrita ao repositório. In
 
 Entregas **1–3 e 4–6 implementadas no piloto**. Conferir v0.13 no ambiente do usuário, revisar as evidências e iniciar avaliação HW-01/HW-02: placa/flash, sensores, solenoides, drivers/fonte, pinagem e limites. Firmware experimental 0.2 foi iniciado por autorização do usuário; fechar circuito/recursos e executar bancada antes de campo. Ver docs/PREPARACAO_ESP32.md e BACKLOG.md.
 
-Primeiro teste ESP32/Wi-Fi/portal sem credenciais no código: [roteiro 0.5.0](iot/docs/PRIMEIRO_ACESSO_ESP32.md).
+Primeiro teste ESP32/Wi-Fi/portal sem credenciais no código: [roteiro 0.5.1](iot/docs/PRIMEIRO_ACESSO_ESP32.md).
