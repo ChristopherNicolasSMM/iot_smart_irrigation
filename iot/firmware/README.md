@@ -1,4 +1,4 @@
-# Firmware experimental 0.5.1
+# Firmware experimental 0.6.0
 
 ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicitamente autorizado pelo usuário com hardware ainda em avaliação. Compilação não comprova funcionamento físico.
 
@@ -62,6 +62,7 @@ Após Wi-Fi/SNTP, Serial informa GUID; acessar http://IP_DA_PLACA/. Portal local
 | POST /api/command | admin/operador + X-CSRF-Token | zone_id, action=start/stop, source=test/manual e duration_s; resposta informa command_status |
 | GET /api/provisioning | admin | Metadados/revisão/IP/bindings; segredos nunca retornados |
 | POST /api/provisioning | admin + CSRF, ocioso | expected_revision + settings parcial; persistir e reiniciar; sem mudar GUID/pinos |
+| GET /api/timezones | admin | Catálogo IANA embutido e versão |
 | GET /api/configuration | admin | Configuração sem segredos |
 | POST /api/configuration | admin + CSRF | Somente bancada independente; envelope completo |
 | POST /api/configuration/draft | admin + CSRF, ocioso | expected_revision + configuration; hash na placa, revisão seguinte; central/nó recusam edição |
@@ -69,6 +70,9 @@ Após Wi-Fi/SNTP, Serial informa GUID; acessar http://IP_DA_PLACA/. Portal local
 | POST /api/calibration | admin + CSRF, ocioso | slot 0..3 + dry/wet, ou slot + rom hexadecimal de 16 caracteres |
 | GET /api/events?before=CURSOR | admin/operador | Até 10 registros por página, mais recentes primeiro; anel de 64, next_before string/null; horário desconhecido null |
 | GET /api/outbox | admin | Contagem/tentativas sem payload ou segredos |
+| POST /api/outbox/cancel | admin + CSRF, ocioso/sem envio | expected_head SHA256 da cabeça + reason; cancela uma mensagem com auditoria |
+| POST /api/events/replay | admin + CSRF, ocioso | sequence string + event_id; reenvia evento retido sem executar saídas |
+| POST /api/recovery/activate | admin + CSRF, ocioso | Libera quarentena após conferência/novo token e reinicia |
 | POST /api/outbox/retry | admin + CSRF, ocioso | Repetir cabeça mantendo corpo/IDs; não corrige token inválido |
 
 Calibração HD-38: pontos raw 0..4095 separados por pelo menos 200; validar solo real e tensão AO antes de conectar. ROMs obtidos no diagnóstico e persistidos; não vincular por ordem de descoberta. Temperatura não controla irrigação.
@@ -83,7 +87,7 @@ npm test
 
 Executar os comandos acima a partir da raiz. Ambiente host requer g++, Python e Node. Resultados, limitações e roteiro físico: [../docs/VALIDACAO_FIRMWARE_V02.md](../docs/VALIDACAO_FIRMWARE_V02.md).
 
-Esta versão ainda não tem paridade integral com o simulador: fuso restrito UTC/São Paulo atual (BRT fixo), datas ISO com ano de quatro dígitos entre 2020 e 9999 (tempo de 64 bits obrigatório), limite de 64 horários expandidos e journal de até 128 ocorrências recentes no dispositivo, com corte temporal/compactação automática na 0.3.1. Não retoma execução no boot; recuperação resumida de observação disponível na 0.2.1; detalhes por agenda disponíveis na 0.3.2; DST global permanece pendente. Falha/saturação deve ser diagnosticada, não apagada automaticamente.
+Esta versão usa 597 fusos/aliases IANA 2026e com DST e regras futuras embutidas; datas ISO com ano de quatro dígitos entre 2020 e 9999 (tempo de 64 bits obrigatório), limite de 64 horários expandidos e journal de até 128 ocorrências recentes no dispositivo, com corte temporal/compactação automática na 0.3.1. Não retoma execução no boot; recuperação resumida de observação disponível na 0.2.1; detalhes por agenda disponíveis na 0.3.2; Regras legais futuras exigem atualização da base; gap DST é omitido e fold usa o primeiro instante. Falha/saturação deve ser diagnosticada, não apagada automaticamente.
 
 ## Recuperação 0.2.1
 
@@ -143,3 +147,9 @@ Assistente: `python iot/firmware/scripts/provision-device.py --port COM5`; statu
 ## Gravação corrigida — 0.5.1
 
 Use 0.5.1 ou posterior para o próximo upload. O post-script mantém o aplicativo em 0x50000 e remove a imagem boot_app0 que antes incidia na NVS. Não usar os binários gerados anteriormente pela plataforma 55.03.38-1 sem essa correção. O comando normal de upload usa imagens separadas; firmware.factory.bin não é atualização que preserva NVS. Não executar erase_flash. Evidência e explicação em [VALIDACAO_FIRMWARE_V051.md](../docs/VALIDACAO_FIRMWARE_V051.md).
+
+## Entrega 0.6.0
+
+Backup criptografado externo, restauração retomável e quarentena, gestão individual da fila e recuperação automática/manual dos eventos retidos. A auditoria continua limitada a 64 registros; não há histórico infinito nem recuperação de amostras de sensores. O cursor persistente pode repetir um evento após queda; o event_id original permite deduplicação central. Uma posição da fila é reservada durante o backfill. Trocar destino impede reenvio do histórico anterior. Eventos sem horário sincronizado/ID/revisão não são reconstruídos. Cancelar uma mensagem não apaga o evento da auditoria: ele pode ser reenviado explicitamente ou pelo backfill se o cursor ainda não o tiver ultrapassado.
+
+Consulte [recuperação, migrações e produção](../docs/RECUPERACAO_E_PRODUCAO_ESP32.md), [base IANA](timezones/README.md) e [validação 0.6.0](../docs/VALIDACAO_FIRMWARE_V06.md). O perfil hardened é um bloqueio de boot e **não prepara/cifra uma placa automaticamente**. Não fazer downgrade direto para 0.5.x após migrar a fila. As restrições de atualização em 0x50000 e de factory.bin da 0.5.1 permanecem.

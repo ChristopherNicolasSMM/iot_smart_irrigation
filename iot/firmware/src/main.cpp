@@ -1,4 +1,5 @@
 #include "../portal/LocalPortalPage.h"
+#include "AuditReplay.h"
 #include "Auth.h"
 #include "Controller.h"
 #include "FirmwareConfig.h"
@@ -8,9 +9,12 @@
 #include "OccurrenceLedger.h"
 #include "Provision.h"
 #include "ProvisionCodec.h"
+#include "QueueCodec.h"
 #include "Recovery.h"
+#include "RecoveryPlan.h"
 #include "RemoteProtocol.h"
 #include "ScheduleDiagnostics.h"
+#include "SecurityPolicy.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -21,10 +25,15 @@
 #include <atomic>
 #include <ctype.h>
 #include <errno.h>
+#include <esp_flash_encrypt.h>
 #include <esp_idf_version.h>
+#include <esp_partition.h>
+#include <esp_secure_boot.h>
 #include <esp_sntp.h>
 #include <mbedtls/x509_crt.h>
-static_assert(ESP_IDF_VERSION_MAJOR >= 5, "ESP-IDF 5+ required for system time64");
+#include <nvs_flash.h>
+static_assert(ESP_IDF_VERSION_MAJOR >= 5,
+              "ESP-IDF 5+ required for system time64");
 #include <esp_system.h>
 #include <mbedtls/base64.h>
 #include <mbedtls/sha256.h>
@@ -40,7 +49,24 @@ DallasTemperature temperatures(&oneWire);
 #define IRRIGATION_REMOTE_NODE 0
 #endif
 using namespace irrigation;
+#ifndef IOT_REQUIRE_HARDENED_BOOT
+#define IOT_REQUIRE_HARDENED_BOOT 0
+#endif
 constexpr size_t bodyLimit = 16384;
+constexpr size_t recoveryLimit = 32768;
+SecurityState security;
+bool recoveryHold = false, recoveryFault = false;
+SemaphoreHandle_t networkMutex;
+struct ScopedMutex {
+  SemaphoreHandle_t handle;
+  bool held;
+  explicit ScopedMutex(SemaphoreHandle_t value)
+      : handle(value), held(value && xSemaphoreTake(value, 0) == pdTRUE) {}
+  ~ScopedMutex() {
+    if (held)
+      xSemaphoreGive(handle);
+  }
+};
 constexpr uint32_t linkLeaseMs = 3000;
 Preferences store;
 ProvisionSettings provision;
@@ -50,7 +76,9 @@ String serialProvisionLine;
 bool serialProvisionOverflow = false;
 uint32_t serialProvisionLast = 0;
 
-SemaphoreHandle_t storeMutex;
+SemaphoreHandle_t storeMutex, outboxMutex;
+uint64_t auditOriginFloor = 0;
+String lastAuditEventId;
 QueueHandle_t incoming;
 WebServer web(80);
 HardwareSerial remoteSerial(2);
@@ -78,9 +106,9 @@ bool recoveryPending = true;
 OccurrenceLedger occurrences;
 bool occurrencesReady = false;
 uint64_t lastScheduleObservation[3][maxSlots] = {};
-int runScheduleSlot[4] = {-1,-1,-1,-1};
+int runScheduleSlot[4] = {-1, -1, -1, -1};
 Window runScheduleWindow[4];
-int plannedScheduleSlot[4] = {-1,-1,-1,-1};
+int plannedScheduleSlot[4] = {-1, -1, -1, -1};
 Window plannedScheduleWindow[4];
 uint32_t checkpointAt = 0;
 bool storageReady = false, bootHold = true;
@@ -127,25 +155,48 @@ bool lockStore() {
   return xSemaphoreTake(storeMutex, pdMS_TO_TICKS(50)) == pdTRUE;
 }
 void unlockStore() { xSemaphoreGive(storeMutex); }
+bool readQueueMeta(QueueMeta &meta) { // Caller holds storeMutex.
+  if (store.isKey("queue_v2")) {
+    DynamicJsonDocument doc(6144);
+    return !deserializeJson(doc, store.getString("queue_v2", "")) &&
+           decodeQueueMeta(doc.as<JsonObjectConst>(), meta);
+  }
+  unsigned head = 0, count = 0;
+  const String old = store.getString("qmeta", "0,0");
+  if (sscanf(old.c_str(), "%u,%u", &head, &count) != 2 || head >= 16 ||
+      count > 16)
+    return false;
+  meta.head = head;
+  meta.count = count;
+  return true;
+}
+bool writeQueueMeta(const QueueMeta &meta) {
+  if (!meta.valid())
+    return false;
+  DynamicJsonDocument doc(6144);
+  queueMetaJson(doc.to<JsonObject>(), meta);
+  if (doc.overflowed())
+    return false;
+  String raw;
+  serializeJson(doc, raw);
+  return store.putString("queue_v2", raw) == raw.length();
+}
 bool queueJob(const String &path, const String &body) {
   if (body.length() > 4096 || !storageReady || !lockStore()) {
     ++lostEvents;
     return false;
   }
-  unsigned count = 0, head = 0;
-  String meta = store.getString("qmeta", "0,0");
-  bool valid = sscanf(meta.c_str(), "%u,%u", &head, &count) == 2 && head < 16 &&
-               count <= 16;
+  QueueMeta meta;
   bool ok = false;
-  if (valid && count < 16) {
+  if (readQueueMeta(meta) && meta.count < 16) {
     DynamicJsonDocument j(body.length() + 512);
     j["path"] = path;
     j["body"] = body;
     String raw;
     serializeJson(j, raw);
-    String key = "q" + String((head + count) % 16);
-    ok = store.putString(key.c_str(), raw) == raw.length() &&
-         store.putString("qmeta", String(head) + "," + String(count + 1)) > 0;
+    String key = "q" + String((meta.head + meta.count) % 16);
+    ok = store.putString(key.c_str(), raw) == raw.length() && meta.enqueue() &&
+         writeQueueMeta(meta);
   }
   unlockStore();
   if (!ok)
@@ -363,27 +414,47 @@ struct Outputs : Backend {
 } outputs;
 String hexKey(uint64_t key) {
   char text[17];
-  snprintf(text,sizeof(text),"%016llx",static_cast<unsigned long long>(key));
+  snprintf(text, sizeof(text), "%016llx", static_cast<unsigned long long>(key));
   return String(text);
 }
-void scheduleContext(JsonObject row,int index,const Window &window) {
-  if (index<0 || size_t(index)>=config.slotCount || !window.occurrence) return;
-  row["schedule_id"]=config.slotScheduleIds[index];
-  if (config.slotTimeIds[index].length()) row["time_slot_id"]=config.slotTimeIds[index];
-  row["occurrence_id"]=hexKey(window.occurrence);
-  row["window_start"]=iso(time_t(window.begins));
-  const int64_t end=window.begins+config.slots[index].durationSecond;
-  if (validClockEpoch(end)) row["window_end"]=iso(time_t(end));
-  else row["window_end"]=nullptr;
+void scheduleContext(JsonObject row, int index, const Window &window) {
+  if (index < 0 || size_t(index) >= config.slotCount || !window.occurrence)
+    return;
+  row["schedule_id"] = config.slotScheduleIds[index];
+  if (config.slotTimeIds[index].length())
+    row["time_slot_id"] = config.slotTimeIds[index];
+  row["occurrence_id"] = hexKey(window.occurrence);
+  row["window_start"] = iso(time_t(window.begins));
+  const int64_t end = window.begins + config.slots[index].durationSecond;
+  if (validClockEpoch(end))
+    row["window_end"] = iso(time_t(end));
+  else
+    row["window_end"] = nullptr;
 }
 bool persistAudit(size_t slot, const char *kind, const char *reason,
-                  Source source, int scheduleIndex=-1, const Window *window=nullptr, int competing=-1) {
+                  Source source, int scheduleIndex = -1,
+                  const Window *window = nullptr, int competing = -1,
+                  const String &eventId = String(),
+                  const String &commandId = String()) {
   if (!storageReady || !lockStore()) {
     bootHold = true;
     return false;
   }
   uint64_t seq = store.getULong64("aseq", 0) + 1;
-  DynamicJsonDocument d(1280);
+  DynamicJsonDocument d(2048);
+  const String id =
+      eventId.length()
+          ? eventId
+          : ((strcmp(kind, "requested") && strcmp(kind, "retention"))
+                 ? uuid()
+                 : String());
+  if (id.length()) {
+    d["event_id"] = id;
+    d["device_guid"] = guid;
+    d["actuator_id"] = config.actuatorIds[slot];
+  }
+  if (commandId.length())
+    d["command_id"] = commandId;
   d["sequence"] = seq;
   d["zone_id"] = config.zoneIds[slot];
   d["kind"] = kind;
@@ -391,21 +462,28 @@ bool persistAudit(size_t slot, const char *kind, const char *reason,
   d["source"] = sourceName(source);
   d["uptime_ms"] = millis();
   d["revision"] = revision;
-  if (window) scheduleContext(d.as<JsonObject>(),scheduleIndex,*window);
-  if (competing>=0 && size_t(competing)<config.slotCount) {
-    d["competing_schedule_id"]=config.slotScheduleIds[competing];
+  if (window)
+    scheduleContext(d.as<JsonObject>(), scheduleIndex, *window);
+  if (competing >= 0 && size_t(competing) < config.slotCount) {
+    d["competing_schedule_id"] = config.slotScheduleIds[competing];
     if (config.slotTimeIds[competing].length())
-      d["competing_time_slot_id"]=config.slotTimeIds[competing];
+      d["competing_time_slot_id"] = config.slotTimeIds[competing];
   }
   if (clockReady())
     d["recorded_at"] = iso(time(nullptr));
   else
     d["recorded_at"] = nullptr;
-  if (d.overflowed()) { unlockStore();bootHold=true;return false; }
+  if (d.overflowed()) {
+    unlockStore();
+    bootHold = true;
+    return false;
+  }
   String raw;
-  const size_t expected=measureJson(d);
-  if (serializeJson(d,raw)!=expected || raw.length()!=expected) {
-    unlockStore();bootHold=true;return false;
+  const size_t expected = measureJson(d);
+  if (serializeJson(d, raw) != expected || raw.length() != expected) {
+    unlockStore();
+    bootHold = true;
+    return false;
   }
   String key = "a" + String(uint32_t(seq % 64));
   bool ok = store.putString(key.c_str(), raw) == raw.length() &&
@@ -413,48 +491,59 @@ bool persistAudit(size_t slot, const char *kind, const char *reason,
   unlockStore();
   if (!ok)
     bootHold = true;
+  else
+    lastAuditEventId = id;
   return ok;
 }
 // One NVS blob contains both tombstone and records. A successful write must
 // precede both RAM mutation and GPIO/RS485 activation.
 bool saveOccurrences(const OccurrenceLedger &next) {
-  const bool saved=commitOccurrenceLedger(occurrences,next,
-      [](const uint8_t *bytes,size_t length) {
-        if (!lockStore()) return false;
-        const bool ok=store.putBytes("occ_v2",bytes,length)==length;
+  const bool saved = commitOccurrenceLedger(
+      occurrences, next, [](const uint8_t *bytes, size_t length) {
+        if (!lockStore())
+          return false;
+        const bool ok = store.putBytes("occ_v2", bytes, length) == length;
         unlockStore();
         return ok;
       });
-  if (!saved) bootHold=true;
+  if (!saved)
+    bootHold = true;
   return saved;
 }
 struct EventJournal : Journal {
   bool reserve(size_t slot, Source source) override {
-    const bool scheduled=source==Source::Static || source==Source::Hybrid;
+    const bool scheduled = source == Source::Static || source == Source::Hybrid;
     if (scheduled) {
-      runScheduleSlot[slot]=plannedScheduleSlot[slot];
-      runScheduleWindow[slot]=plannedScheduleWindow[slot];
+      runScheduleSlot[slot] = plannedScheduleSlot[slot];
+      runScheduleWindow[slot] = plannedScheduleWindow[slot];
     }
-    return persistAudit(slot,"requested","output_attempt",source,
+    return persistAudit(slot, "requested", "output_attempt", source,
                         scheduled ? runScheduleSlot[slot] : -1,
                         scheduled ? &runScheduleWindow[slot] : nullptr);
   }
   bool contains(size_t slot, uint64_t key) const override {
-    return occurrencesReady && occurrences.contains(slot,key);
+    return occurrencesReady && occurrences.contains(slot, key);
   }
   // All production calls must carry a civil window start; no untimed append.
   bool consume(size_t, uint64_t) override { return false; }
   bool consumeWindow(size_t slot, uint64_t key, int64_t begins) override {
-    if (!occurrencesReady) return false;
-    auto next=std::unique_ptr<OccurrenceLedger>(new (std::nothrow) OccurrenceLedger(occurrences));
-    if (!next) { bootHold=true; return false; }
-    auto result=next->add(slot,key,begins);
-    if (result==OccurrenceLedger::Result::Duplicate) return true;
-    if (result!=OccurrenceLedger::Result::Added) {
-      bootHold=true;
+    if (!occurrencesReady)
+      return false;
+    auto next = std::unique_ptr<OccurrenceLedger>(
+        new (std::nothrow) OccurrenceLedger(occurrences));
+    if (!next) {
+      bootHold = true;
       return false;
     }
-    if (!saveOccurrences(*next)) return false;
+    auto result = next->add(slot, key, begins);
+    if (result == OccurrenceLedger::Result::Duplicate)
+      return true;
+    if (result != OccurrenceLedger::Result::Added) {
+      bootHold = true;
+      return false;
+    }
+    if (!saveOccurrences(*next))
+      return false;
     return true;
   }
   void event(size_t slot, const char *kind, const char *reason,
@@ -466,13 +555,17 @@ struct EventJournal : Journal {
       actual = "failed";
       why = "remote_output_unknown";
     }
-    const bool scheduled=source==Source::Static || source==Source::Hybrid;
-    if (scheduled && strcmp(kind,"completed") && strcmp(kind,"interrupted")) {
-      runScheduleSlot[slot]=plannedScheduleSlot[slot];
-      runScheduleWindow[slot]=plannedScheduleWindow[slot];
+    const bool scheduled = source == Source::Static || source == Source::Hybrid;
+    if (scheduled && strcmp(kind, "completed") && strcmp(kind, "interrupted")) {
+      runScheduleSlot[slot] = plannedScheduleSlot[slot];
+      runScheduleWindow[slot] = plannedScheduleWindow[slot];
     }
-    persistAudit(slot, actual, why, source,scheduled ? runScheduleSlot[slot] : -1,
-                 scheduled ? &runScheduleWindow[slot] : nullptr);
+    if (!persistAudit(slot, actual, why, source,
+                      scheduled ? runScheduleSlot[slot] : -1,
+                      scheduled ? &runScheduleWindow[slot] : nullptr, -1,
+                      String(), eventCommand))
+      return;
+    const String auditEventId = lastAuditEventId;
     Serial.printf("event slot=%u kind=%s reason=%s\n", unsigned(slot), actual,
                   why);
     if (commands[slot].length()) {
@@ -497,7 +590,7 @@ struct EventJournal : Journal {
     doc.createNestedArray("readings");
     JsonArray events = doc.createNestedArray("events");
     JsonObject e = events.createNestedObject();
-    e["event_id"] = uuid();
+    e["event_id"] = auditEventId;
     e["device_guid"] = guid;
     e["zone_id"] = config.zoneIds[slot];
     e["actuator_id"] = config.actuatorIds[slot];
@@ -506,13 +599,20 @@ struct EventJournal : Journal {
     e["source"] = sourceName(source);
     e["recorded_at"] = iso(time(nullptr));
     e["revision"] = revision;
-    if (scheduled) scheduleContext(e,runScheduleSlot[slot],runScheduleWindow[slot]);
+    if (scheduled)
+      scheduleContext(e, runScheduleSlot[slot], runScheduleWindow[slot]);
     if (eventCommand.length())
       e["command_id"] = eventCommand;
-    if (doc.overflowed()) { ++lostEvents;return; }
+    if (doc.overflowed()) {
+      ++lostEvents;
+      return;
+    }
     String raw;
-    const size_t expected=measureJson(doc);
-    if (serializeJson(doc,raw)!=expected || raw.length()!=expected) { ++lostEvents;return; }
+    const size_t expected = measureJson(doc);
+    if (serializeJson(doc, raw) != expected || raw.length() != expected) {
+      ++lostEvents;
+      return;
+    }
     queueJob("/iot/v1/telemetry", raw);
   }
 } journal;
@@ -521,68 +621,110 @@ Controller controller(outputs, journal);
 // hourly increments, not every loop. Migration fences all pre-upgrade windows
 // because legacy hashes do not carry timestamps; legacy keys remain untouched.
 bool maintainOccurrences(time_t epoch) {
-  if (!clockReady()) return false;
-  if (occurrencesReady && int64_t(epoch)<occurrences.floor) return false;
-  if (occurrencesReady && !occurrences.compactionDue(int64_t(epoch))) return true;
-  auto next=std::unique_ptr<OccurrenceLedger>(new (std::nothrow) OccurrenceLedger(occurrences));
-  if (!next) { bootHold=true; return false; }
-  const bool migrating=!occurrencesReady;
-  if (!(migrating ? next->advance(int64_t(epoch)) : next->compact(int64_t(epoch))) ||
-      !saveOccurrences(*next)) return false;
-  occurrencesReady=true;
+  if (!clockReady())
+    return false;
+  if (occurrencesReady && int64_t(epoch) < occurrences.floor)
+    return false;
+  if (occurrencesReady && !occurrences.compactionDue(int64_t(epoch)))
+    return true;
+  auto next = std::unique_ptr<OccurrenceLedger>(
+      new (std::nothrow) OccurrenceLedger(occurrences));
+  if (!next) {
+    bootHold = true;
+    return false;
+  }
+  const bool migrating = !occurrencesReady;
+  if (!(migrating ? next->advance(int64_t(epoch))
+                  : next->compact(int64_t(epoch))) ||
+      !saveOccurrences(*next))
+    return false;
+  occurrencesReady = true;
   controller.clearOccurrenceCache();
-  for (size_t i=0;i<config.count;++i)
-    if (!persistAudit(i,"retention",migrating ? "legacy_fenced" : "temporal_compaction",Source::Static))
+  for (size_t i = 0; i < config.count; ++i)
+    if (!persistAudit(i, "retention",
+                      migrating ? "legacy_fenced" : "temporal_compaction",
+                      Source::Static))
       return false;
   return true;
 }
 // Diagnostic telemetry is best effort under the existing bounded outbox policy.
 // Save locally first; stable event IDs let central ingestion deduplicate reboot
 // retransmissions even when the RAM suppression cache has been lost.
-bool scheduleObservation(size_t index,const Window &window,const char *kind,
-                         const char *reason,unsigned category,int competing=-1,bool historyTruncated=false) {
-  const auto &s=config.slots[index];
-  const auto key=diagnosticKey(s,window,revision,reason);
-  if (lastScheduleObservation[category][index]==key) return true;
-  const auto source=config.zones[s.zone].mode==Mode::Hybrid ? Source::Hybrid : Source::Static;
-  if (!persistAudit(s.zone,kind,reason,source,int(index),&window,competing)) return false;
-  DynamicJsonDocument doc(3072);
-  doc["schema_version"]=1;doc["message_id"]=uuid();doc["device_guid"]=guid;
-  doc["boot_id"]=bootId;doc["sequence"]=++sequence;
-  doc["recorded_at"]=iso(time(nullptr));doc["time_quality"]="synchronized";
-  doc["configuration_revision"]=revision;doc["simulated"]=false;
-  doc.createNestedArray("readings");
-  JsonObject event=doc.createNestedArray("events").createNestedObject();
-  const String stableHash=digest(guid+":"+String(revision)+":"+hexKey(key));
-  if (stableHash.length()!=64) { bootHold=true;return false; }
-  event["event_id"]=String("schedule-")+stableHash;
-  event["device_guid"]=guid;event["zone_id"]=config.zoneIds[s.zone];
-  event["actuator_id"]=config.actuatorIds[s.zone];event["revision"]=revision;
-  event["kind"]=kind;event["reason"]=reason;event["source"]=sourceName(source);
-  event["recorded_at"]=iso(time(nullptr));
-  scheduleContext(event,int(index),window);
-  event["history_truncated"]=historyTruncated;
-  if (!s.date) event["weekly_lookback_days"]=7;
-  if (competing>=0) {
-    event["competing_schedule_id"]=config.slotScheduleIds[competing];
-    if (config.slotTimeIds[competing].length())
-      event["competing_time_slot_id"]=config.slotTimeIds[competing];
+bool scheduleObservation(size_t index, const Window &window, const char *kind,
+                         const char *reason, unsigned category,
+                         int competing = -1, bool historyTruncated = false) {
+  const auto &s = config.slots[index];
+  const auto key = diagnosticKey(s, window, revision, reason);
+  if (lastScheduleObservation[category][index] == key)
+    return true;
+  const auto source = config.zones[s.zone].mode == Mode::Hybrid
+                          ? Source::Hybrid
+                          : Source::Static;
+  const String stableHash =
+      digest(guid + ":" + String(revision) + ":" + hexKey(key));
+  if (stableHash.length() != 64) {
+    bootHold = true;
+    return false;
   }
-  if (doc.overflowed()) { bootHold=true;return false; }
+  const String eventId = String("schedule-") + stableHash;
+  if (!persistAudit(s.zone, kind, reason, source, int(index), &window,
+                    competing, eventId))
+    return false;
+  DynamicJsonDocument doc(3072);
+  doc["schema_version"] = 1;
+  doc["message_id"] = uuid();
+  doc["device_guid"] = guid;
+  doc["boot_id"] = bootId;
+  doc["sequence"] = ++sequence;
+  doc["recorded_at"] = iso(time(nullptr));
+  doc["time_quality"] = "synchronized";
+  doc["configuration_revision"] = revision;
+  doc["simulated"] = false;
+  doc.createNestedArray("readings");
+  JsonObject event = doc.createNestedArray("events").createNestedObject();
+  event["event_id"] = eventId;
+  event["device_guid"] = guid;
+  event["zone_id"] = config.zoneIds[s.zone];
+  event["actuator_id"] = config.actuatorIds[s.zone];
+  event["revision"] = revision;
+  event["kind"] = kind;
+  event["reason"] = reason;
+  event["source"] = sourceName(source);
+  event["recorded_at"] = iso(time(nullptr));
+  scheduleContext(event, int(index), window);
+  event["history_truncated"] = historyTruncated;
+  if (!s.date)
+    event["weekly_lookback_days"] = 7;
+  if (competing >= 0) {
+    event["competing_schedule_id"] = config.slotScheduleIds[competing];
+    if (config.slotTimeIds[competing].length())
+      event["competing_time_slot_id"] = config.slotTimeIds[competing];
+  }
+  if (doc.overflowed()) {
+    bootHold = true;
+    return false;
+  }
   String raw;
-  const size_t expected=measureJson(doc);
-  if (serializeJson(doc,raw)!=expected || raw.length()!=expected) { bootHold=true;return false; }
-  queueJob("/iot/v1/telemetry",raw); // failure counted by existing lost_events
-  lastScheduleObservation[category][index]=key;
+  const size_t expected = measureJson(doc);
+  if (serializeJson(doc, raw) != expected || raw.length() != expected) {
+    bootHold = true;
+    return false;
+  }
+  queueJob("/iot/v1/telemetry", raw); // failure counted by existing lost_events
+  lastScheduleObservation[category][index] = key;
   return true;
 }
 // A checkpoint describes observation, not proof of valve execution. The last
 // minute before a power loss may be reported again as unobserved after boot.
 bool recoverSchedules(time_t epoch, uint32_t now) {
-  if (!clockReady()) return false;
+  if (!clockReady())
+    return false;
   int64_t from = previousEpoch;
   if (recoveryPending) {
-    if (!lockStore()) { bootHold = true; return false; }
+    if (!lockStore()) {
+      bootHold = true;
+      return false;
+    }
     String raw = store.getString("observation", "");
     unlockStore();
     DynamicJsonDocument checkpoint(256);
@@ -600,30 +742,37 @@ bool recoverSchedules(time_t epoch, uint32_t now) {
     }
   }
   // Never advance a checkpoint backwards or allow old windows after rollback.
-  if (int64_t(epoch) < from) return false;
+  if (int64_t(epoch) < from)
+    return false;
   if (recoveryPending || int64_t(epoch) - from > 3) {
     unsigned counts[4] = {};
     bool truncated[4] = {};
     for (size_t i = 0; i < config.slotCount; ++i) {
       const auto &s = config.slots[i];
       if (!config.zones[s.zone].enabled ||
-          config.zones[s.zone].mode == Mode::Dynamic) continue;
+          config.zones[s.zone].mode == Mode::Dynamic)
+        continue;
       auto result = unobserved(s, from, epoch);
       counts[s.zone] += result.windows;
       truncated[s.zone] = truncated[s.zone] || result.truncated;
-      if (!visitUnobserved(s,from,epoch,revision,[&](const Window &window) {
-            return scheduleObservation(i,window,"recovery_observation","unobserved_window",0,-1,result.truncated);
-          })) return false;
+      if (!visitUnobserved(s, from, epoch, revision, [&](const Window &window) {
+            return scheduleObservation(i, window, "recovery_observation",
+                                       "unobserved_window", 0, -1,
+                                       result.truncated);
+          }))
+        return false;
     }
     for (size_t i = 0; i < config.count; ++i) {
       const Source source = config.zones[i].mode == Mode::Hybrid
-                                ? Source::Hybrid : Source::Static;
+                                ? Source::Hybrid
+                                : Source::Static;
       if (counts[i]) {
         String reason = "unobserved_closed_windows_" + String(counts[i]);
-        if (!persistAudit(i, "recovery_summary", reason.c_str(), source)) return false;
+        if (!persistAudit(i, "recovery_summary", reason.c_str(), source))
+          return false;
       }
-      if (truncated[i] &&
-          !persistAudit(i, "recovery_summary", "weekly_history_limited_7d", source))
+      if (truncated[i] && !persistAudit(i, "recovery_summary",
+                                        "weekly_history_limited_7d", source))
         return false;
     }
   }
@@ -631,9 +780,11 @@ bool recoverSchedules(time_t epoch, uint32_t now) {
     for (size_t i = 0; i < config.slotCount; ++i) {
       const auto &s = config.slots[i];
       if (!config.zones[s.zone].enabled ||
-          config.zones[s.zone].mode == Mode::Dynamic) continue;
+          config.zones[s.zone].mode == Mode::Dynamic)
+        continue;
       const auto window = evaluate(s, epoch, epoch, revision);
-      if (!window.open) continue;
+      if (!window.open)
+        continue;
       // Also consume an interrupted open window: hybrid must not start late
       // on the next tick simply because moisture is below its threshold.
       if (!occurrences.retired(window.begins) &&
@@ -642,8 +793,10 @@ bool recoverSchedules(time_t epoch, uint32_t now) {
         return false;
       }
       controller.restoreOccurrence(s.zone, window.occurrence);
-      if (!scheduleObservation(i,window,"omitted","open_window_not_resumed",1,-1,
-                               !s.date && from<int64_t(epoch)-7*86400)) return false;
+      if (!scheduleObservation(i, window, "omitted", "open_window_not_resumed",
+                               1, -1,
+                               !s.date && from < int64_t(epoch) - 7 * 86400))
+        return false;
     }
   }
   if (recoveryPending || uint32_t(now - checkpointAt) >= 60000) {
@@ -652,13 +805,20 @@ bool recoverSchedules(time_t epoch, uint32_t now) {
     checkpoint["epoch"] = int64_t(epoch);
     String raw;
     serializeJson(checkpoint, raw);
-    if (!lockStore()) { bootHold = true; return false; }
+    if (!lockStore()) {
+      bootHold = true;
+      return false;
+    }
     bool ok = store.putString("observation", raw) == raw.length();
     unlockStore();
-    if (!ok) { bootHold = true; return false; }
+    if (!ok) {
+      bootHold = true;
+      return false;
+    }
     checkpointAt = now;
   }
-  if (recoveryPending) previousEpoch = epoch;
+  if (recoveryPending)
+    previousEpoch = epoch;
   recoveryPending = false;
   return true;
 }
@@ -750,8 +910,11 @@ bool applyEnvelope(const String &body, String &error) {
   configRaw = raw;
   configHash = hash;
   revision = next;
-  setenv("TZ", config.timezone == "America/Sao_Paulo" ? "BRT3" : "UTC0", 1);
-  tzset();
+  if (!selectTimezone(config.timezone.c_str())) {
+    error = "timezone_unavailable";
+    bootHold = true;
+    return false;
+  }
   previousEpoch = time(nullptr);
   recoveryPending = true;
   return true;
@@ -881,6 +1044,7 @@ void loadProvision() {
     if (valid) {
       provision = std::move(saved);
       provisionRevision = doc["profile_revision"];
+      auditOriginFloor = doc["audit_origin_floor"] | uint64_t(0);
     } else {
       provisionFault = true;
       Serial.println(
@@ -902,6 +1066,10 @@ String provisionStatus() {
   JsonObject result = doc.to<JsonObject>();
   provisionJson(result, provision, false);
   result["profile_revision"] = provisionRevision;
+  result["configuration_revision"] = revision;
+  result["recovery_hold"] = recoveryHold;
+  result["recovery_fault"] = recoveryFault;
+  result["usb_recovery_allowed"] = security.usbRecoveryAllowed();
   result["guid"] = guid;
   result["provision_fault"] = provisionFault;
   result["restart_pending"] = restartPending;
@@ -914,6 +1082,10 @@ String provisionStatus() {
   return raw;
 }
 bool saveProvision(const String &body, bool authorized, String &error) {
+  if (recoveryFault) {
+    error = "recovery_stage_fault";
+    return false;
+  }
   if (body.length() > bodyLimit - 512) {
     error = "provision_too_large";
     return false;
@@ -947,10 +1119,11 @@ bool saveProvision(const String &body, bool authorized, String &error) {
     error = "storage_busy";
     return false;
   }
-  unsigned head = 0, count = 0;
-  const String meta = store.getString("qmeta", "0,0");
-  const bool queueEmpty = sscanf(meta.c_str(), "%u,%u", &head, &count) == 2 &&
-                          head < 16 && count == 0;
+  QueueMeta queueMeta;
+  const bool queueEmpty = readQueueMeta(queueMeta) && queueMeta.count == 0;
+  const uint64_t originFloor = candidate.portalUrl != provision.portalUrl
+                                   ? store.getULong64("aseq", 0)
+                                   : auditOriginFloor;
   unlockStore();
   const char *reason = provisionWriteRejection(
       authorized, idle, restartPending, expected, provisionRevision,
@@ -972,8 +1145,12 @@ bool saveProvision(const String &body, bool authorized, String &error) {
   String raw;
   serializeJson(settings, raw);
   const String hash = digest(raw);
+  char originText[21];
+  snprintf(originText, sizeof(originText), "%llu",
+           static_cast<unsigned long long>(originFloor));
   const String record = String("{\"schema_version\":1,\"profile_revision\":") +
                         String(provisionRevision + 1) +
+                        ",\"audit_origin_floor\":" + String(originText) +
                         ",\"settings_hash\":\"" + hash +
                         "\",\"settings\":" + raw + "}";
   if (hash.length() != 64 || record.length() > bodyLimit) {
@@ -997,6 +1174,338 @@ bool saveProvision(const String &body, bool authorized, String &error) {
   restartAt = millis();
   return true;
 }
+struct RecoveryStore {
+  std::string guid() { return store.getString("guid", "").c_str(); }
+  bool hold() { return store.putBool("recover_hold", true) == 1; }
+  bool text(const std::string &key, const std::string &value) {
+    if (store.isKey(key.c_str()) &&
+        store.getString(key.c_str(), "") == value.c_str())
+      return true;
+    const size_t written = store.putString(key.c_str(), value.c_str());
+    return written == value.size() && store.isKey(key.c_str()) &&
+           store.getString(key.c_str(), "") == value.c_str();
+  }
+  bool removeStage() {
+    return !store.isKey("restore_v1") || store.remove("restore_v1");
+  }
+};
+bool recoveryIdle() {
+  return !controller.activeCount() && !nodeLease.active() && !restartPending &&
+         (!IOT_PHYSICAL_OUTPUTS || outputs.allKnown());
+}
+String recoveryBackup(String &error) {
+  if (!security.usbRecoveryAllowed() || !usbProvisionWindow ||
+      millis() >= 180000 || !recoveryIdle() || recoveryFault ||
+      validateProvision(provision)) {
+    error = "recovery_not_available";
+    return String();
+  }
+  ScopedMutex network(networkMutex);
+  if (!network.held) {
+    error = "network_busy";
+    return String();
+  }
+  DynamicJsonDocument doc(65536);
+  doc["schema_version"] = 1;
+  doc["device_guid"] = guid;
+  doc["firmware"] = "0.6.0-experimental";
+  doc["recorded_at"] = clockReady() ? iso(time(nullptr)) : String();
+  provisionJson(doc.createNestedObject("settings"), provision, true);
+  if (!lockStore()) {
+    error = "storage_busy";
+    return String();
+  }
+  doc["configuration_envelope"] = store.getString("config", "");
+  JsonArray sensors = doc.createNestedArray("calibration");
+  for (unsigned i = 0; i < 4; ++i) {
+    JsonObject row = sensors.createNestedObject();
+    row["slot"] = i;
+    row["calibration"] = store.getString(("cal" + String(i)).c_str(), "");
+    row["rom"] = store.getString(("rom" + String(i)).c_str(), "");
+  }
+  unlockStore();
+  if (doc.overflowed()) {
+    error = "recovery_too_large";
+    return String();
+  }
+  String raw;
+  serializeJson(doc, raw);
+  if (raw.length() > recoveryLimit - 512) {
+    error = "recovery_too_large";
+    return String();
+  }
+  return raw;
+}
+bool prepareRecovery(JsonObjectConst backup, RecoveryPlan &plan,
+                     String &error) {
+  if (backup["schema_version"] != 1 ||
+      !backup["device_guid"].is<const char *>() ||
+      !backup["settings"].is<JsonObjectConst>() ||
+      !backup["configuration_envelope"].is<const char *>() ||
+      !backup["calibration"].is<JsonArrayConst>() ||
+      backup["calibration"].size() != 4) {
+    error = "recovery_snapshot_invalid";
+    return false;
+  }
+  ProvisionSettings candidate;
+  if (!provisionPatch(backup["settings"].as<JsonObjectConst>(), candidate,
+                      error) ||
+      !provisionCertificate(candidate))
+    return false;
+  if (provisionRevision == UINT32_MAX) {
+    error = "provision_revision_exhausted";
+    return false;
+  }
+  const String configEnvelope = backup["configuration_envelope"].as<String>();
+  uint32_t snapshotRevision = 0;
+  String snapshotHash;
+  if (configEnvelope.length()) {
+    DynamicJsonDocument envelope(24576);
+    size_t begin = 0, end = 0;
+    if (configEnvelope.length() > bodyLimit ||
+        deserializeJson(envelope, configEnvelope) ||
+        envelope["schema_version"] != 1 ||
+        envelope["device_guid"].as<String>() != guid ||
+        !envelope["revision"].is<uint32_t>() ||
+        envelope["revision"].as<uint32_t>() == 0 ||
+        !objectMember(
+            std::string(configEnvelope.c_str(), configEnvelope.length()),
+            "configuration", begin, end)) {
+      error = "recovery_configuration_invalid";
+      return false;
+    }
+    snapshotRevision = envelope["revision"];
+    snapshotHash = envelope["configuration_hash"].as<String>();
+    auto parsed =
+        std::unique_ptr<FirmwareConfig>(new (std::nothrow) FirmwareConfig());
+    if (snapshotHash.length() != 64 ||
+        digest(configEnvelope.substring(begin, end)) != snapshotHash ||
+        !parsed ||
+        !parseConfiguration(envelope["configuration"].as<JsonObjectConst>(),
+                            *parsed, error)) {
+      error = "recovery_configuration_invalid";
+      return false;
+    }
+  }
+  if (!lockStore()) {
+    error = "storage_busy";
+    return false;
+  }
+  QueueMeta queue;
+  const bool empty = readQueueMeta(queue) && queue.count == 0;
+  const uint64_t originFloor = candidate.portalUrl != provision.portalUrl
+                                   ? store.getULong64("aseq", 0)
+                                   : auditOriginFloor;
+  unlockStore();
+  const char *reason =
+      recoveryRejection(guid.c_str(), backup["device_guid"].as<std::string>(),
+                        recoveryIdle(), revision, snapshotRevision,
+                        snapshotRevision && snapshotRevision == revision &&
+                            configHash.length() && snapshotHash != configHash,
+                        candidate.portalUrl != provision.portalUrl, empty);
+  if (reason) {
+    error = reason;
+    return false;
+  }
+  std::array<bool, 4> seen{};
+  for (JsonObjectConst row : backup["calibration"].as<JsonArrayConst>()) {
+    if (!row["slot"].is<unsigned>() || row["slot"].as<unsigned>() >= 4 ||
+        !row["calibration"].is<const char *>() ||
+        !row["rom"].is<const char *>()) {
+      error = "recovery_calibration_invalid";
+      return false;
+    }
+    const unsigned slot = row["slot"];
+    if (seen[slot]) {
+      error = "recovery_calibration_invalid";
+      return false;
+    }
+    seen[slot] = true;
+    String cal = row["calibration"].as<String>(), rom = row["rom"].as<String>();
+    int dry = 0, wet = 0;
+    char tail = 0;
+    if (cal.length() &&
+        (cal.length() > 24 ||
+         sscanf(cal.c_str(), "%d,%d%c", &dry, &wet, &tail) != 2 || dry < 0 ||
+         dry > 4095 || wet < 0 || wet > 4095 || abs(dry - wet) < 200)) {
+      error = "recovery_calibration_invalid";
+      return false;
+    }
+    if (rom.length() != 0 && rom.length() != 16) {
+      error = "recovery_rom_invalid";
+      return false;
+    }
+    for (size_t j = 0; j < rom.length(); ++j)
+      if (!isxdigit(rom[j])) {
+        error = "recovery_rom_invalid";
+        return false;
+      }
+    plan.calibration[slot] = cal.c_str();
+    plan.roms[slot] = rom.c_str();
+  }
+  DynamicJsonDocument settings(24576);
+  provisionJson(settings.to<JsonObject>(), candidate, true);
+  if (settings.overflowed()) {
+    error = "recovery_too_large";
+    return false;
+  }
+  String raw;
+  serializeJson(settings, raw);
+  const String hash = digest(raw);
+  char floor[21];
+  snprintf(floor, sizeof(floor), "%llu",
+           static_cast<unsigned long long>(originFloor));
+  plan.guid = guid.c_str();
+  plan.configuration = configEnvelope.c_str();
+  plan.tokenHash = digest(String(candidate.deviceToken.c_str())).c_str();
+  const String profile =
+      String("{\"schema_version\":1,\"profile_revision\":") +
+      String(provisionRevision + 1) + ",\"audit_origin_floor\":" + floor +
+      ",\"settings_hash\":\"" + hash + "\",\"settings\":" + raw + "}";
+  if (hash.length() != 64 || profile.length() > bodyLimit) {
+    error = "recovery_too_large";
+    return false;
+  }
+  plan.profile = profile.c_str();
+  return true;
+}
+bool stageRecovery(const String &raw, String &error) {
+  if (!security.usbRecoveryAllowed() || !usbProvisionWindow ||
+      millis() >= 180000 || !recoveryIdle() || recoveryFault) {
+    error = "recovery_not_available";
+    return false;
+  }
+  ScopedMutex network(networkMutex);
+  if (!network.held) {
+    error = "network_busy";
+    return false;
+  }
+  if (raw.length() > recoveryLimit - 512) {
+    error = "recovery_too_large";
+    return false;
+  }
+  RecoveryPlan plan;
+  {
+    DynamicJsonDocument doc(65536);
+    if (deserializeJson(doc, raw) ||
+        !doc["expected_profile_revision"].is<uint32_t>() ||
+        !doc["expected_configuration_revision"].is<uint32_t>() ||
+        doc["expected_profile_revision"].as<uint32_t>() != provisionRevision ||
+        doc["expected_configuration_revision"].as<uint32_t>() != revision ||
+        !doc["backup"].is<JsonObjectConst>()) {
+      error = "recovery_revision_or_request_invalid";
+      return false;
+    }
+    if (!prepareRecovery(doc["backup"].as<JsonObjectConst>(), plan, error))
+      return false;
+  }
+  DynamicJsonDocument manifest(65536);
+  JsonObject body = manifest.to<JsonObject>();
+  body["schema_version"] = 1;
+  body["device_guid"] = plan.guid.c_str();
+  body["profile"] = plan.profile.c_str();
+  body["configuration"] = plan.configuration.c_str();
+  body["token_hash"] = plan.tokenHash.c_str();
+  JsonArray sensors = body.createNestedArray("calibration");
+  for (unsigned i = 0; i < 4; ++i) {
+    JsonObject row = sensors.createNestedObject();
+    row["calibration"] = plan.calibration[i].c_str();
+    row["rom"] = plan.roms[i].c_str();
+  }
+  if (manifest.overflowed()) {
+    error = "recovery_too_large";
+    return false;
+  }
+  String serialized;
+  serializeJson(manifest, serialized);
+  const String hash = digest(serialized);
+  const String record =
+      String("{\"hash\":\"") + hash + "\",\"body\":" + serialized + "}";
+  if (hash.length() != 64 || record.length() > recoveryLimit) {
+    error = "recovery_too_large";
+    return false;
+  }
+  if (!lockStore()) {
+    error = "storage_busy";
+    return false;
+  }
+  bool ok = !store.isKey("restore_v1") &&
+            store.putString("restore_v1", record) == record.length();
+  unlockStore();
+  if (!ok) {
+    error = "recovery_stage_failed";
+    return false;
+  }
+  bootHold = true;
+  restartPending = true;
+  restartAt = millis();
+  return true;
+}
+bool applyStagedRecovery() { // setup only; no background task has started.
+  recoveryHold = store.getBool("recover_hold", false);
+  if (!store.isKey("restore_v1"))
+    return true;
+  // Corrupted staging also holds automation until explicit physical abort.
+  if (store.putBool("recover_hold", true) != 1)
+    return false;
+  recoveryHold = true;
+  const String raw = store.getString("restore_v1", "");
+  size_t begin = 0, end = 0;
+  DynamicJsonDocument doc(65536);
+  if (raw.length() > recoveryLimit || deserializeJson(doc, raw) ||
+      !objectMember(std::string(raw.c_str(), raw.length()), "body", begin,
+                    end) ||
+      doc["hash"].as<String>().length() != 64 ||
+      digest(raw.substring(begin, end)) != doc["hash"].as<String>())
+    return false;
+  JsonObjectConst body = doc["body"];
+  if (body["schema_version"] != 1 || body["device_guid"].as<String>() != guid ||
+      !body["profile"].is<const char *>() ||
+      !body["configuration"].is<const char *>() ||
+      !body["token_hash"].is<const char *>() || body["calibration"].size() != 4)
+    return false;
+  RecoveryPlan plan;
+  plan.guid = guid.c_str();
+  plan.profile = body["profile"].as<std::string>();
+  plan.configuration = body["configuration"].as<std::string>();
+  plan.tokenHash = body["token_hash"].as<std::string>();
+  for (unsigned i = 0; i < 4; ++i) {
+    plan.calibration[i] =
+        body["calibration"][i]["calibration"].as<std::string>();
+    plan.roms[i] = body["calibration"][i]["rom"].as<std::string>();
+  }
+  RecoveryStore adapter;
+  return applyRecoveryPlan(plan, adapter);
+}
+bool activateRecovery(String &error) {
+  if (!recoveryHold || recoveryFault || !recoveryIdle()) {
+    error = "recovery_not_available";
+    return false;
+  }
+  if (!lockStore()) {
+    error = "storage_busy";
+    return false;
+  }
+  String oldHash = store.getString("recover_token", "");
+  if (!provision.portalUrl.empty() &&
+      (provision.deviceToken.empty() ||
+       digest(String(provision.deviceToken.c_str())) == oldHash)) {
+    unlockStore();
+    error = "rotate_device_token_after_restore";
+    return false;
+  }
+  const bool ok = store.putBool("recover_hold", false) == 1;
+  unlockStore();
+  if (!ok) {
+    error = "recovery_activation_failed";
+    return false;
+  }
+  bootHold = true;
+  restartPending = true;
+  restartAt = millis();
+  return true;
+}
+
 void serialProvision() {
   // Physical recovery is available only during the first three minutes after
   // reset.
@@ -1019,8 +1528,44 @@ void serialProvision() {
                        "window_closed\"}");
       else if (serialProvisionLine == "PROVISION?")
         Serial.println(String("PROVISION_STATUS ") + provisionStatus());
-      else if (serialProvisionLine.startsWith("PROVISION ")) {
-        if (!usbProvisionWindow) {
+      else if (serialProvisionLine == "RECOVERY_BACKUP" ||
+               serialProvisionLine.startsWith("RECOVERY_RESTORE ") ||
+               serialProvisionLine == "RECOVERY_ACCEPT" ||
+               serialProvisionLine == "RECOVERY_ABORT") {
+        String error;
+        bool ok = false;
+        if (serialProvisionLine == "RECOVERY_BACKUP") {
+          String raw = recoveryBackup(error);
+          if (raw.length()) {
+            Serial.println(String("RECOVERY_BACKUP ") + raw);
+            serialProvisionLine = "";
+            continue;
+          }
+        } else if (serialProvisionLine.startsWith("RECOVERY_RESTORE "))
+          ok = stageRecovery(serialProvisionLine.substring(17), error);
+        else if (!usbProvisionWindow || millis() >= 180000 ||
+                 !security.usbRecoveryAllowed())
+          error = "usb_window_closed_or_production";
+        else if (serialProvisionLine == "RECOVERY_ACCEPT")
+          ok = activateRecovery(error);
+        else if (recoveryIdle() && store.isKey("restore_v1") &&
+                 store.remove("restore_v1")) {
+          ok = store.putBool("recover_hold", true) == 1;
+          bootHold = true;
+          restartPending = ok;
+          restartAt = millis();
+        } else
+          error = "recovery_abort_unavailable";
+        DynamicJsonDocument result(512);
+        result["saved"] = ok;
+        result["restart_pending"] = ok;
+        if (!ok)
+          result["error"] = error;
+        String raw;
+        serializeJson(result, raw);
+        Serial.println(String("RECOVERY_RESULT ") + raw);
+      } else if (serialProvisionLine.startsWith("PROVISION ")) {
+        if (!usbProvisionWindow || !security.usbRecoveryAllowed()) {
           Serial.println("PROVISION_RESULT "
                          "{\"saved\":false,\"error\":\"usb_window_closed\"}");
           serialProvisionLine = "";
@@ -1042,7 +1587,7 @@ void serialProvision() {
       serialProvisionOverflow = false;
     } else if (!serialProvisionOverflow) {
       if (serialProvisionLine.length() >=
-          (usbProvisionWindow ? bodyLimit : 64)) {
+          (usbProvisionWindow ? recoveryLimit : 64)) {
         serialProvisionLine = "";
         serialProvisionOverflow = true;
       } else
@@ -1052,29 +1597,40 @@ void serialProvision() {
   }
 }
 
-String statusJson(bool csrfToken,int role=0) {
+String statusJson(bool csrfToken, int role = 0) {
   DynamicJsonDocument d(4096);
-  d["firmware"] = "0.5.1-experimental";
+  d["firmware"] = "0.6.0-experimental";
+  d["recovery_hold"] = recoveryHold;
+  d["tzdb_version"] = tzdbVersion;
+  JsonObject protections = d.createNestedObject("security");
+  protections["required"] = security.required;
+  protections["flash_encrypted"] = security.flashEncrypted;
+  protections["secure_boot"] = security.secureBoot;
+  protections["nvs_encrypted"] = security.nvsEncrypted;
+  protections["ready"] = security.ready();
   d["wifi_connected"] = WiFi.status() == WL_CONNECTED;
   d["ip"] =
       WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : String();
   d["restart_pending"] = restartPending;
   d["guid"] = guid;
   if (role) {
-    d["local_role"]=role==2 ? "admin" : "operator";
+    d["local_role"] = role == 2 ? "admin" : "operator";
     d["configuration_authority"] =
         strlen(provision.portalUrl.c_str()) || IRRIGATION_REMOTE_NODE
             ? "central"
             : "local";
-    JsonObject capabilities=d.createNestedObject("capabilities");
+    JsonObject capabilities = d.createNestedObject("capabilities");
     capabilities["configure"] = role == 2 &&
                                 !strlen(provision.portalUrl.c_str()) &&
                                 !IRRIGATION_REMOTE_NODE;
-    capabilities["calibrate"]=role==2 && !IRRIGATION_ROLE_MATRIX;
-    capabilities["outbox"]=role==2;
-    capabilities["command"]=!IRRIGATION_REMOTE_NODE;
-    d["local_role_type"]=IRRIGATION_REMOTE_NODE ? "remote_node" : (IRRIGATION_ROLE_MATRIX ? "matrix" : "sensor_bench");
-    d["configuration_body_limit"]=bodyLimit-512;
+    capabilities["calibrate"] = role == 2 && !IRRIGATION_ROLE_MATRIX;
+    capabilities["outbox"] = role == 2;
+    capabilities["command"] = !IRRIGATION_REMOTE_NODE;
+    d["local_role_type"] =
+        IRRIGATION_REMOTE_NODE
+            ? "remote_node"
+            : (IRRIGATION_ROLE_MATRIX ? "matrix" : "sensor_bench");
+    d["configuration_body_limit"] = bodyLimit - 512;
   }
   d["revision"] = revision;
   d["clock_valid"] = clockReady();
@@ -1145,6 +1701,9 @@ bool administrator() {
   }
   return true;
 }
+bool enqueueAuditSequence(uint64_t seq, const String &expectedId,
+                          String &error);
+bool readReplayState(AuditReplay &state);
 void localPortal() {
   const char *headers[] = {"Authorization", "X-CSRF-Token"};
   web.collectHeaders(headers, 2);
@@ -1155,10 +1714,45 @@ void localPortal() {
     web.send_P(200, "text/html; charset=utf-8", localPortalPage);
   });
   web.on("/api/state", HTTP_GET, [] {
-    const int role=authenticate();
-    if (!role) return;
+    const int role = authenticate();
+    if (!role)
+      return;
     web.sendHeader("Cache-Control", "no-store");
-    web.send(200, "application/json", statusJson(true,role));
+    web.send(200, "application/json", statusJson(true, role));
+  });
+  web.on("/api/recovery/activate", HTTP_POST, [] {
+    if (!administrator())
+      return;
+    if (web.header("X-CSRF-Token") != csrf) {
+      web.send(403, "application/json", "{\"error\":\"csrf_invalid\"}");
+      return;
+    }
+    String error;
+    const bool ok = activateRecovery(error);
+    DynamicJsonDocument doc(384);
+    doc["activated"] = ok;
+    doc["restart_pending"] = ok;
+    if (!ok)
+      doc["error"] = error;
+    String raw;
+    serializeJson(doc, raw);
+    web.send(ok ? 200 : 409, "application/json", raw);
+  });
+  web.on("/api/timezones", HTTP_GET, [] {
+    if (!authenticate())
+      return;
+    DynamicJsonDocument doc(16384);
+    doc["version"] = tzdbVersion;
+    JsonArray names = doc.createNestedArray("names");
+    for (const auto &entry : timezoneNames)
+      names.add(entry.name);
+    if (doc.overflowed()) {
+      web.send(503, "application/json", "{}");
+      return;
+    }
+    String raw;
+    serializeJson(doc, raw);
+    web.send(200, "application/json", raw);
   });
   web.on("/api/provisioning", HTTP_GET, [] {
     if (!administrator())
@@ -1197,15 +1791,25 @@ void localPortal() {
       web.send(503, "application/json", "{}");
       return;
     }
-    unsigned head = 0, count = 0;
-    String meta = store.getString("qmeta", "0,0");
-    sscanf(meta.c_str(), "%u,%u", &head, &count);
-    DynamicJsonDocument d(1024), row(6144);
+    QueueMeta meta;
+    if (!readQueueMeta(meta)) {
+      unlockStore();
+      web.send(503, "application/json", "{}");
+      return;
+    }
+    const unsigned head = meta.head, count = meta.count;
+    DynamicJsonDocument d(6144), row(6144);
+    queueMetaJson(d.to<JsonObject>(), meta);
     d["count"] = count;
     d["capacity"] = 16;
     if (count && head < 16) {
       String key = "q" + String(head);
       deserializeJson(row, store.getString(key.c_str(), ""));
+      d["head_digest"] = digest(store.getString(key.c_str(), ""));
+      d["head_path"] = row["path"];
+      DynamicJsonDocument payload(6144);
+      deserializeJson(payload, row["body"].as<String>());
+      d["head_message_id"] = payload["message_id"];
       d["head_attempts"] = row["attempts"] | 0;
       d["head_blocked"] = (row["attempts"] | 0) >= 5;
     }
@@ -1225,9 +1829,13 @@ void localPortal() {
       web.send(503, "application/json", "{}");
       return;
     }
-    unsigned head = 0, count = 0;
-    String meta = store.getString("qmeta", "0,0");
-    sscanf(meta.c_str(), "%u,%u", &head, &count);
+    QueueMeta meta;
+    if (!readQueueMeta(meta)) {
+      unlockStore();
+      web.send(503, "application/json", "{}");
+      return;
+    }
+    const unsigned head = meta.head, count = meta.count;
     bool ok = false;
     if (count && head < 16) {
       String key = "q" + String(head);
@@ -1243,6 +1851,96 @@ void localPortal() {
     web.send(ok ? 200 : 409, "application/json",
              ok ? "{\"retry_pending\":true}" : "{}");
   });
+  web.on("/api/outbox/cancel", HTTP_POST, [] {
+    if (!administrator())
+      return;
+    if (web.header("X-CSRF-Token") != csrf) {
+      web.send(403, "application/json", "{\"error\":\"csrf_invalid\"}");
+      return;
+    }
+    if (controller.activeCount() || nodeLease.active() || restartPending ||
+        xSemaphoreTake(outboxMutex, 0) != pdTRUE) {
+      web.send(409, "application/json", "{\"error\":\"outbox_busy\"}");
+      return;
+    }
+    DynamicJsonDocument request(1024);
+    String body = web.arg("plain");
+    bool valid = body.length() <= 768 && !deserializeJson(request, body) &&
+                 request["expected_head"].is<const char *>() &&
+                 request["reason"].is<const char *>();
+    bool ok = false;
+    String error = "cancel_request_invalid";
+    if (valid && lockStore()) {
+      QueueMeta meta;
+      if (readQueueMeta(meta) && meta.count) {
+        String key = "q" + String(meta.head),
+               raw = store.getString(key.c_str(), "");
+        if (digest(raw) == request["expected_head"].as<String>()) {
+          DynamicJsonDocument row(6144), payload(6144);
+          deserializeJson(row, raw);
+          deserializeJson(payload, row["body"].as<String>());
+          QueueCancellation entry;
+          entry.digest = digest(raw).c_str();
+          entry.reason = request["reason"].as<std::string>();
+          entry.path = row["path"].as<std::string>();
+          entry.messageId = payload["message_id"].as<std::string>();
+          entry.recordedAt = clockReady() ? iso(time(nullptr)).c_str() : "";
+          ok = meta.cancel(entry) && writeQueueMeta(meta);
+          if (ok)
+            store.remove(key.c_str());
+          else
+            error = "cancel_persistence_failed";
+        } else
+          error = "outbox_head_changed";
+      } else
+        error = "outbox_empty_or_invalid";
+      unlockStore();
+    }
+    xSemaphoreGive(outboxMutex);
+    DynamicJsonDocument response(384);
+    response["cancelled"] = ok;
+    if (!ok)
+      response["error"] = error;
+    String raw;
+    serializeJson(response, raw);
+    web.send(ok ? 200 : 409, "application/json", raw);
+  });
+  web.on("/api/events/replay", HTTP_POST, [] {
+    if (!administrator())
+      return;
+    if (web.header("X-CSRF-Token") != csrf) {
+      web.send(403, "application/json", "{\"error\":\"csrf_invalid\"}");
+      return;
+    }
+    if (controller.activeCount() || nodeLease.active() ||
+        provision.portalUrl.empty() || bootHold) {
+      web.send(409, "application/json", "{\"error\":\"replay_unavailable\"}");
+      return;
+    }
+    DynamicJsonDocument request(512);
+    String raw = web.arg("plain"), error;
+    bool ok = false;
+    if (raw.length() <= 384 && !deserializeJson(request, raw) &&
+        request["sequence"].is<const char *>() &&
+        request["event_id"].is<const char *>()) {
+      String text = request["sequence"];
+      char *end = nullptr;
+      errno = 0;
+      uint64_t seq = strtoull(text.c_str(), &end, 10);
+      bool valid = text.length() > 0 && text.length() <= 20;
+      for (size_t i = 0; i < text.length(); ++i)
+        valid = valid && isdigit(text[i]);
+      if (valid && errno != ERANGE && end && !*end)
+        ok = enqueueAuditSequence(seq, request["event_id"].as<String>(), error);
+    }
+    DynamicJsonDocument response(384);
+    response["queued"] = ok;
+    if (!ok)
+      response["error"] = error.length() ? error : "replay_invalid";
+    raw = "";
+    serializeJson(response, raw);
+    web.send(ok ? 200 : 409, "application/json", raw);
+  });
   web.on("/api/events", HTTP_GET, [] {
     if (!authenticate())
       return;
@@ -1250,37 +1948,66 @@ void localPortal() {
       web.send(503, "application/json", "{}");
       return;
     }
-    uint64_t before=0;
+    uint64_t before = 0;
     if (web.hasArg("before")) {
-      String cursor=web.arg("before");
-      bool valid=cursor.length()>0 && cursor.length()<=20;
-      for (size_t i=0;i<cursor.length();++i) valid=valid && isdigit(cursor[i]);
-      errno=0;char *end=nullptr;
-      before=strtoull(cursor.c_str(),&end,10);
-      if (!valid || errno==ERANGE || !end || *end || !before) {
-        unlockStore();web.send(400,"application/json","{\"error\":\"invalid_cursor\"}");return;
+      String cursor = web.arg("before");
+      bool valid = cursor.length() > 0 && cursor.length() <= 20;
+      for (size_t i = 0; i < cursor.length(); ++i)
+        valid = valid && isdigit(cursor[i]);
+      errno = 0;
+      char *end = nullptr;
+      before = strtoull(cursor.c_str(), &end, 10);
+      if (!valid || errno == ERANGE || !end || *end || !before) {
+        unlockStore();
+        web.send(400, "application/json", "{\"error\":\"invalid_cursor\"}");
+        return;
       }
     }
     DynamicJsonDocument d(24576);
-    JsonArray events=d.createNestedArray("events");
-    const uint64_t last=store.getULong64("aseq",0),first=last>63 ? last-63 : 1;
-    uint64_t seq=before && before<=last ? before-1 : last;
-    d["total_since_provisioning"]=last;d["retained_limit"]=64;d["page_limit"]=10;
-    unsigned visited=0;
-    while (seq>=first && seq>0 && visited<10) {
-      String key="a"+String(uint32_t(seq%64));DynamicJsonDocument row(1536);
-      if (!deserializeJson(row,store.getString(key.c_str(),"")) &&
-          row["sequence"].as<uint64_t>()==seq) events.add(row.as<JsonObjectConst>());
-      --seq;++visited;
+    JsonArray events = d.createNestedArray("events");
+    const uint64_t last = store.getULong64("aseq", 0),
+                   first = last > 63 ? last - 63 : 1;
+    uint64_t seq = before && before <= last ? before - 1 : last;
+    d["total_since_provisioning"] = last;
+    d["retained_limit"] = 64;
+    d["page_limit"] = 10;
+    AuditReplay progress;
+    const bool replayValid = readReplayState(progress);
+    char cursor[21];
+    snprintf(cursor, sizeof(cursor), "%llu",
+             static_cast<unsigned long long>(progress.cursor));
+    d["replay_cursor"] = cursor;
+    d["replay_overwritten"] = progress.overwritten;
+    d["replay_state_valid"] = replayValid;
+    unsigned visited = 0;
+    while (seq >= first && seq > 0 && visited < 10) {
+      String key = "a" + String(uint32_t(seq % 64));
+      DynamicJsonDocument row(2048);
+      if (!deserializeJson(row, store.getString(key.c_str(), "")) &&
+          row["sequence"].as<uint64_t>() == seq) {
+        char text[21];
+        snprintf(text, sizeof(text), "%llu",
+                 static_cast<unsigned long long>(seq));
+        row["sequence_cursor"] = text;
+        events.add(row.as<JsonObjectConst>());
+      }
+      --seq;
+      ++visited;
     }
-    if (seq>=first && seq>0) {
-      char cursor[21];snprintf(cursor,sizeof(cursor),"%llu",static_cast<unsigned long long>(seq+1));
-      d["next_before"]=cursor;
-    }
-    else d["next_before"]=nullptr;
+    if (seq >= first && seq > 0) {
+      char cursor[21];
+      snprintf(cursor, sizeof(cursor), "%llu",
+               static_cast<unsigned long long>(seq + 1));
+      d["next_before"] = cursor;
+    } else
+      d["next_before"] = nullptr;
     unlockStore();
-    if (d.overflowed()) { web.send(503,"application/json","{\"error\":\"event_page_too_large\"}");return; }
-    String raw;serializeJson(d,raw);
+    if (d.overflowed()) {
+      web.send(503, "application/json", "{\"error\":\"event_page_too_large\"}");
+      return;
+    }
+    String raw;
+    serializeJson(d, raw);
     web.send(200, "application/json", raw);
   });
   web.on("/api/sensors", HTTP_GET, [] {
@@ -1304,25 +2031,40 @@ void localPortal() {
       }
     }
 #endif
-    d["local_available"]=!IRRIGATION_ROLE_MATRIX;
-    JsonArray calibration=d.createNestedArray("calibration");
-    if (!lockStore()) { web.send(503,"application/json","{}");return; }
-    for (unsigned i=0;i<4;++i) {
-      JsonObject row=calibration.createNestedObject();row["slot"]=i;
-      row["moisture_enabled"]=!IRRIGATION_ROLE_MATRIX && (hardware::moistureMask & (1u<<i));
-      row["temperature_enabled"]=!IRRIGATION_ROLE_MATRIX && hardware::temperatureEnabled;
-      const String value=store.getString(("cal"+String(i)).c_str(),"");
-      int dry=0,wet=0;const bool saved=sscanf(value.c_str(),"%d,%d",&dry,&wet)==2;
-      if (saved) { row["dry"]=dry;row["wet"]=wet; }
-      row["rom"]=temperatureRom[i];
+    d["local_available"] = !IRRIGATION_ROLE_MATRIX;
+    JsonArray calibration = d.createNestedArray("calibration");
+    if (!lockStore()) {
+      web.send(503, "application/json", "{}");
+      return;
+    }
+    for (unsigned i = 0; i < 4; ++i) {
+      JsonObject row = calibration.createNestedObject();
+      row["slot"] = i;
+      row["moisture_enabled"] =
+          !IRRIGATION_ROLE_MATRIX && (hardware::moistureMask & (1u << i));
+      row["temperature_enabled"] =
+          !IRRIGATION_ROLE_MATRIX && hardware::temperatureEnabled;
+      const String value = store.getString(("cal" + String(i)).c_str(), "");
+      int dry = 0, wet = 0;
+      const bool saved = sscanf(value.c_str(), "%d,%d", &dry, &wet) == 2;
+      if (saved) {
+        row["dry"] = dry;
+        row["wet"] = wet;
+      }
+      row["rom"] = temperatureRom[i];
     }
     unlockStore();
-    String s;serializeJson(d,s);web.send(200,"application/json",s);
+    String s;
+    serializeJson(d, s);
+    web.send(200, "application/json", s);
   });
   web.on("/api/calibration", HTTP_POST, [] {
-    if (!administrator()) return;
+    if (!administrator())
+      return;
     if (IRRIGATION_ROLE_MATRIX) {
-      web.send(405,"application/json","{\"error\":\"calibrate_at_sensor_node\"}");return;
+      web.send(405, "application/json",
+               "{\"error\":\"calibrate_at_sensor_node\"}");
+      return;
     }
     if (web.header("X-CSRF-Token") != csrf || controller.activeCount() ||
         nodeLease.active()) {
@@ -1337,7 +2079,10 @@ void localPortal() {
       return;
     }
     unsigned i = d["slot"];
-    if (IRRIGATION_REMOTE_NODE && i!=0) { web.send(400,"application/json","{}");return; }
+    if (IRRIGATION_REMOTE_NODE && i != 0) {
+      web.send(400, "application/json", "{}");
+      return;
+    }
     String rom = d["rom"].as<String>();
     bool hasRom = rom.length();
     if (hasRom) {
@@ -1399,43 +2144,65 @@ void localPortal() {
     serializeJson(d, raw);
     web.send(ok ? 200 : 400, "application/json", raw);
   });
-  web.on("/api/configuration/draft",HTTP_POST,[] {
-    if (!administrator()) return;
-    if (web.header("X-CSRF-Token")!=csrf) {
-      web.send(403,"application/json","{\"error\":\"csrf_invalid\"}");return;
+  web.on("/api/configuration/draft", HTTP_POST, [] {
+    if (!administrator())
+      return;
+    if (web.header("X-CSRF-Token") != csrf) {
+      web.send(403, "application/json", "{\"error\":\"csrf_invalid\"}");
+      return;
     }
-    const String body=web.arg("plain");
-    if (body.length()>bodyLimit-256) { web.send(413,"application/json","{\"error\":\"configuration_too_large\"}");return; }
-    const char *reason=nullptr;
+    const String body = web.arg("plain");
+    if (body.length() > bodyLimit - 256) {
+      web.send(413, "application/json",
+               "{\"error\":\"configuration_too_large\"}");
+      return;
+    }
+    const char *reason = nullptr;
     { // Release the parsed draft before applyEnvelope allocates its document.
-    DynamicJsonDocument draft(24576);
-    if (deserializeJson(draft,body) || !draft["expected_revision"].is<uint32_t>() ||
-        !draft["configuration"].is<JsonObject>()) {
-      web.send(400,"application/json","{\"error\":\"draft_invalid\"}");return;
-    }
-    reason =
-        draftRejection(2, true, strlen(provision.portalUrl.c_str()),
-                       IRRIGATION_REMOTE_NODE, controller.activeCount(),
-                       draft["expected_revision"].as<uint32_t>(), revision);
+      DynamicJsonDocument draft(24576);
+      if (deserializeJson(draft, body) ||
+          !draft["expected_revision"].is<uint32_t>() ||
+          !draft["configuration"].is<JsonObject>()) {
+        web.send(400, "application/json", "{\"error\":\"draft_invalid\"}");
+        return;
+      }
+      reason =
+          draftRejection(2, true, strlen(provision.portalUrl.c_str()),
+                         IRRIGATION_REMOTE_NODE, controller.activeCount(),
+                         draft["expected_revision"].as<uint32_t>(), revision);
     }
     if (reason) {
-      web.send(409,"application/json",String("{\"error\":\"")+reason+"\"}");return;
+      web.send(409, "application/json",
+               String("{\"error\":\"") + reason + "\"}");
+      return;
     }
-    size_t begin=0,end=0;
-    if (!objectMember(std::string(body.c_str(),body.length()),"configuration",begin,end)) {
-      web.send(400,"application/json","{\"error\":\"draft_invalid\"}");return;
+    size_t begin = 0, end = 0;
+    if (!objectMember(std::string(body.c_str(), body.length()), "configuration",
+                      begin, end)) {
+      web.send(400, "application/json", "{\"error\":\"draft_invalid\"}");
+      return;
     }
-    const String configuration=body.substring(begin,end), hash=digest(configuration);
-    if (configuration.length()>bodyLimit-512 || hash.length()!=64) {
-      web.send(400,"application/json","{\"error\":\"configuration_too_large_or_hash_failed\"}");return;
+    const String configuration = body.substring(begin, end),
+                 hash = digest(configuration);
+    if (configuration.length() > bodyLimit - 512 || hash.length() != 64) {
+      web.send(400, "application/json",
+               "{\"error\":\"configuration_too_large_or_hash_failed\"}");
+      return;
     }
-    const String envelope=String("{\"schema_version\":1,\"device_guid\":\"")+guid+
-        "\",\"revision\":"+String(revision+1)+",\"configuration_hash\":\""+hash+
-        "\",\"configuration\":"+configuration+"}";
-    String error;const bool applied=applyEnvelope(envelope,error);
-    DynamicJsonDocument result(512);result["applied"]=applied;result["revision"]=revision;
-    if (!applied) result["error"]=error;
-    String raw;serializeJson(result,raw);web.send(applied ? 200 : 400,"application/json",raw);
+    const String envelope = String("{\"schema_version\":1,\"device_guid\":\"") +
+                            guid + "\",\"revision\":" + String(revision + 1) +
+                            ",\"configuration_hash\":\"" + hash +
+                            "\",\"configuration\":" + configuration + "}";
+    String error;
+    const bool applied = applyEnvelope(envelope, error);
+    DynamicJsonDocument result(512);
+    result["applied"] = applied;
+    result["revision"] = revision;
+    if (!applied)
+      result["error"] = error;
+    String raw;
+    serializeJson(result, raw);
+    web.send(applied ? 200 : 400, "application/json", raw);
   });
   web.on("/api/command", HTTP_POST, [] {
     if (!authenticate())
@@ -1473,6 +2240,9 @@ void localPortal() {
 // Network runs in its own task: TLS/HTTP waits cannot prolong local run
 // duration.
 int api(const String &path, const String &body, String &response) {
+  ScopedMutex transaction(networkMutex);
+  if (!transaction.held || recoveryHold)
+    return -4;
   if (authBlocked.load())
     return -3;
   if (WiFi.status() != WL_CONNECTED ||
@@ -1505,73 +2275,196 @@ int api(const String &path, const String &body, String &response) {
   http.end();
   return code;
 }
+bool enqueueAuditSequence(uint64_t seq, const String &expectedId,
+                          String &error) {
+  if (!lockStore()) {
+    error = "storage_busy";
+    return false;
+  }
+  const uint64_t last = store.getULong64("aseq", 0),
+                 first = last > 63 ? last - 63 : 1;
+  if (seq < first || seq > last || seq <= auditOriginFloor) {
+    unlockStore();
+    error = "audit_not_retained_or_prior_destination";
+    return false;
+  }
+  DynamicJsonDocument event(2048);
+  const String key = "a" + String(uint32_t(seq % 64));
+  const bool valid =
+      !deserializeJson(event, store.getString(key.c_str(), "")) &&
+      event["sequence"].as<uint64_t>() == seq;
+  QueueMeta queue;
+  const bool room = readQueueMeta(queue) && queue.count < 15;
+  unlockStore();
+  if (!valid || !event["event_id"].is<const char *>() ||
+      event["event_id"].as<String>() != expectedId ||
+      !event["recorded_at"].is<const char *>() ||
+      event["revision"].as<uint32_t>() == 0) {
+    error = "audit_not_replayable";
+    return false;
+  }
+  if (!room) {
+    error = "outbox_full";
+    return false;
+  }
+  DynamicJsonDocument doc(4096);
+  doc["schema_version"] = 1;
+  doc["message_id"] = uuid();
+  doc["device_guid"] = guid;
+  doc["boot_id"] = bootId;
+  doc["sequence"] = ++sequence;
+  doc["recorded_at"] = event["recorded_at"];
+  doc["time_quality"] = "synchronized";
+  doc["configuration_revision"] = event["revision"];
+  doc["simulated"] = false;
+  doc.createNestedArray("readings");
+  JsonObject copy = doc.createNestedArray("events").createNestedObject();
+  copy.set(event.as<JsonObjectConst>());
+  if (doc.overflowed()) {
+    error = "audit_too_large";
+    return false;
+  }
+  String raw;
+  serializeJson(doc, raw);
+  if (!queueJob("/iot/v1/telemetry", raw)) {
+    error = "audit_enqueue_failed";
+    return false;
+  }
+  return true;
+}
+bool readReplayState(AuditReplay &state) {
+  if (!store.isKey("replay_v1")) {
+    state.cursor = store.getULong64("areplay", 0);
+    state.overwritten = store.getULong64("audit_lost", 0);
+    return true;
+  }
+  DynamicJsonDocument doc(384);
+  if (deserializeJson(doc, store.getString("replay_v1", "")) ||
+      doc["schema_version"] != 1 || !doc["cursor"].is<uint64_t>() ||
+      !doc["overwritten"].is<uint64_t>())
+    return false;
+  state.cursor = doc["cursor"];
+  state.overwritten = doc["overwritten"];
+  return true;
+}
+bool writeReplayState(const AuditReplay &state) {
+  DynamicJsonDocument doc(384);
+  doc["schema_version"] = 1;
+  doc["cursor"] = state.cursor;
+  doc["overwritten"] = state.overwritten;
+  String raw;
+  serializeJson(doc, raw);
+  return store.putString("replay_v1", raw) == raw.length();
+}
+void replayAudit() {
+  static uint32_t at = 0;
+  if (uint32_t(millis() - at) < 2000 || controller.activeCount() ||
+      nodeLease.active() || provision.portalUrl.empty() || !revision ||
+      !clockReady() || bootHold)
+    return;
+  at = millis();
+  if (!lockStore())
+    return;
+  const uint64_t last = store.getULong64("aseq", 0);
+  AuditReplay state;
+  if (!readReplayState(state)) {
+    unlockStore();
+    return;
+  }
+  const uint64_t before = state.cursor;
+  if (!state.fence(last, auditOriginFloor) ||
+      (state.cursor != before && !writeReplayState(state))) {
+    unlockStore();
+    return;
+  }
+  if (state.cursor >= last) {
+    unlockStore();
+    return;
+  }
+  const uint64_t next = state.cursor + 1;
+  DynamicJsonDocument row(2048);
+  String key = "a" + String(uint32_t(next % 64));
+  const bool eligible =
+      !deserializeJson(row, store.getString(key.c_str(), "")) &&
+      row["sequence"].as<uint64_t>() == next &&
+      row["event_id"].is<const char *>() &&
+      row["recorded_at"].is<const char *>() &&
+      row["revision"].as<uint32_t>() > 0;
+  const String id = row["event_id"].as<String>();
+  unlockStore();
+  String error;
+  if (eligible && !enqueueAuditSequence(next, id, error))
+    return;
+  state.cursor = next;
+  if (lockStore()) {
+    writeReplayState(state);
+    unlockStore();
+  }
+}
+
 void networkTask(void *) {
   uint32_t configAt = millis() - 10000, commandsAt = millis() - 1000;
   uint32_t retryAt = 0;
   for (;;) {
     String response;
-    if (lockStore()) {
-      unsigned count = 0, head = 0;
-      String meta = store.getString("qmeta", "0,0");
-      sscanf(meta.c_str(), "%u,%u", &head, &count);
-      if (head >= 16 || count > 16) {
-        count = 0;
-        head = 0;
-      }
-      String key = "q" + String(head),
-             raw = count ? store.getString(key.c_str(), "") : String();
-      unlockStore();
-      if (raw.length() && int32_t(millis() - retryAt) >= 0 &&
-          WiFi.status() == WL_CONNECTED && clockReady() &&
-          !authBlocked.load()) {
-        DynamicJsonDocument j(bodyLimit + 1024);
-        if (!deserializeJson(j, raw) && (j["attempts"] | 0) < 5) {
-          int attempts = (j["attempts"] | 0) + 1;
-          j["attempts"] = attempts;
-          String updated;
-          serializeJson(j, updated);
-          bool saved = false;
-          if (lockStore()) {
-            if (store.getString(key.c_str(), "") == raw)
-              saved = store.putString(key.c_str(), updated) == updated.length();
-            unlockStore();
-          }
-          if (!saved) {
-            vTaskDelay(pdMS_TO_TICKS(100));
-            continue;
-          }
-          raw = updated;
-          retryAt = millis() + uint32_t(2000u << (attempts - 1));
-          int code =
-              api(j["path"].as<String>(), j["body"].as<String>(), response);
-          DynamicJsonDocument ack(1024);
-          if (code >= 200 && code < 300 && !deserializeJson(ack, response) &&
-              ack["accepted"] == true) {
-            bool matching = true;
-            if (j["path"] == "/iot/v1/telemetry") {
-              DynamicJsonDocument sent(bodyLimit + 1024);
-              matching = !deserializeJson(sent, j["body"].as<String>()) &&
-                         ack["message_id"].as<String>() ==
-                             sent["message_id"].as<String>();
+    if (xSemaphoreTake(outboxMutex, 0) == pdTRUE) {
+      if (lockStore()) {
+        QueueMeta meta;
+        const bool valid = readQueueMeta(meta);
+        const unsigned count = valid ? meta.count : 0,
+                       head = valid ? meta.head : 0;
+        String key = "q" + String(head),
+               raw = count ? store.getString(key.c_str(), "") : String();
+        unlockStore();
+        if (raw.length() && int32_t(millis() - retryAt) >= 0 &&
+            WiFi.status() == WL_CONNECTED && clockReady() &&
+            !authBlocked.load()) {
+          DynamicJsonDocument j(bodyLimit + 1024);
+          if (!deserializeJson(j, raw) && (j["attempts"] | 0) < 5) {
+            int attempts = (j["attempts"] | 0) + 1;
+            j["attempts"] = attempts;
+            String updated;
+            serializeJson(j, updated);
+            bool saved = false;
+            if (lockStore()) {
+              if (store.getString(key.c_str(), "") == raw)
+                saved =
+                    store.putString(key.c_str(), updated) == updated.length();
+              unlockStore();
             }
-            if (matching && lockStore()) {
-              if (store.getString(key.c_str(), "") == raw) {
-                unsigned currentHead = 0, currentCount = 0;
-                String meta = store.getString("qmeta", "0,0");
-                if (sscanf(meta.c_str(), "%u,%u", &currentHead,
-                           &currentCount) == 2 &&
-                    currentHead == head && currentCount > 0) {
-                  if (store.putString("qmeta", String((head + 1) % 16) + "," +
-                                                   String(currentCount - 1)) >
-                      0)
+            if (!saved) {
+              xSemaphoreGive(outboxMutex);
+              vTaskDelay(pdMS_TO_TICKS(100));
+              continue;
+            }
+            raw = updated;
+            retryAt = millis() + uint32_t(2000u << (attempts - 1));
+            int code =
+                api(j["path"].as<String>(), j["body"].as<String>(), response);
+            DynamicJsonDocument ack(1024);
+            if (code >= 200 && code < 300 && !deserializeJson(ack, response) &&
+                ack["accepted"] == true) {
+              bool matching = true;
+              if (j["path"] == "/iot/v1/telemetry") {
+                DynamicJsonDocument sent(bodyLimit + 1024);
+                matching = !deserializeJson(sent, j["body"].as<String>()) &&
+                           ack["message_id"].as<String>() ==
+                               sent["message_id"].as<String>();
+              }
+              if (matching && lockStore()) {
+                if (store.getString(key.c_str(), "") == raw) {
+                  QueueMeta current;
+                  if (readQueueMeta(current) && current.head == head &&
+                      current.count && current.pop() && writeQueueMeta(current))
                     store.remove(key.c_str());
                 }
+                unlockStore();
               }
-              unlockStore();
             }
           }
         }
       }
+      xSemaphoreGive(outboxMutex);
     }
     response = "";
     if (uint32_t(millis() - configAt) >= 10000) {
@@ -1841,7 +2734,8 @@ void nodeLoop(uint32_t now) {
         q.node == IOT_NODE_ADDRESS) {
       bool accepted = false;
       if (q.type == wire::Start &&
-          (!IOT_PHYSICAL_OUTPUTS || !(IOT_RELAY_MASK & 1) || !storageReady))
+          (!IOT_PHYSICAL_OUTPUTS || !(IOT_RELAY_MASK & 1) || !storageReady ||
+           recoveryHold))
         accepted = false;
       else if (q.type == wire::Start && !outputs.intent(0, true))
         accepted = false;
@@ -1872,8 +2766,22 @@ void nodeLoop(uint32_t now) {
 #endif
 }
 void setup() {
+  Serial.setRxBufferSize(4096);
   Serial.begin(115200);
+  security.required = IOT_REQUIRE_HARDENED_BOOT;
+  security.flashEncrypted = esp_flash_encryption_enabled();
+  security.secureBoot = esp_secure_boot_enabled();
+#if defined(CONFIG_NVS_ENCRYPTION) && CONFIG_NVS_ENCRYPTION
+  const esp_partition_t *keys = esp_partition_find_first(
+      ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS_KEYS, nullptr);
+  nvs_sec_cfg_t cfg{};
+  security.nvsEncrypted = keys && keys->encrypted &&
+                          nvs_flash_read_security_cfg(keys, &cfg) == ESP_OK;
+  memset(&cfg, 0, sizeof(cfg));
+#endif
   storeMutex = xSemaphoreCreateMutex();
+  outboxMutex = xSemaphoreCreateMutex();
+  networkMutex = xSemaphoreCreateMutex();
   incoming = xQueueCreate(4, sizeof(Input *));
 #if !IRRIGATION_ROLE_MATRIX
   if (IOT_PHYSICAL_OUTPUTS)
@@ -1883,22 +2791,30 @@ void setup() {
         pinMode(hardware::relayPins[i], OUTPUT);
       }
 #endif
-  storageReady = storeMutex && incoming && store.begin("irrigation", false);
+  storageReady = storeMutex && outboxMutex && networkMutex && incoming &&
+                 store.begin("irrigation", false);
   if (!storageReady) {
     Serial.println("storage_fault: outputs blocked");
     return;
   }
+  if (!security.allowed()) {
+    storageReady = false;
+    Serial.println("security_requirements_unmet: production boot blocked; no "
+                   "eFuse changed");
+    return;
+  }
   if (store.isKey("occ_v2")) {
-    const size_t length=store.getBytesLength("occ_v2");
-    auto bytes=std::unique_ptr<uint8_t[]>(new (std::nothrow) uint8_t[OccurrenceLedger::maxBytes]);
-    if (!bytes || length>OccurrenceLedger::maxBytes || !length ||
-        store.getBytes("occ_v2",bytes.get(),length)!=length ||
-        !occurrences.decode(bytes.get(),length)) {
-      storageReady=false;
+    const size_t length = store.getBytesLength("occ_v2");
+    auto bytes = std::unique_ptr<uint8_t[]>(
+        new (std::nothrow) uint8_t[OccurrenceLedger::maxBytes]);
+    if (!bytes || length > OccurrenceLedger::maxBytes || !length ||
+        store.getBytes("occ_v2", bytes.get(), length) != length ||
+        !occurrences.decode(bytes.get(), length)) {
+      storageReady = false;
       Serial.println("occurrence_journal_fault: preserve NVS; outputs blocked");
       return;
     }
-    occurrencesReady=true;
+    occurrencesReady = true;
   }
   guid = store.getString("guid", "");
   if (!guid.length()) {
@@ -1909,7 +2825,13 @@ void setup() {
     storageReady = false;
     Serial.println("GUID mismatch: preserve identity, fix provisioning");
   }
+  if (!applyStagedRecovery())
+    recoveryFault = true;
   loadProvision();
+  if (recoveryFault) {
+    provisionFault = true;
+    Serial.println("recovery_stage_fault: held, USB abort available");
+  }
   bootId = uuid();
   csrf = uuid();
   esp_fill_random(&nodeBootToken, sizeof(nodeBootToken));
@@ -1954,7 +2876,7 @@ void setup() {
   }
   // Boot never resumes outputs; retain hold if recovery/fault or remote state
   // unknown.
-  bootHold = !storageReady || provisionFault;
+  bootHold = !storageReady || provisionFault || recoveryHold;
   for (unsigned i = 0; i < config.count; ++i) {
     String key = "run" + String(i);
     if (store.getBool(key.c_str(), false))
@@ -1969,6 +2891,8 @@ void setup() {
     esp_sntp_set_time_sync_notification_cb(
         [](struct timeval *) { clockSynchronized.store(true); });
     configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
+    if (config.timezone.length())
+      selectTimezone(config.timezone.c_str());
     if (strlen(provision.adminPassword.c_str()) >= 12)
       localPortal();
     if (!IRRIGATION_REMOTE_NODE && strlen(provision.portalUrl.c_str()) &&
@@ -1976,7 +2900,7 @@ void setup() {
       xTaskCreatePinnedToCore(networkTask, "portal-network", 12288, nullptr, 1,
                               nullptr, 0);
   }
-  Serial.printf("firmware=0.5.1 guid=%s physical=%u\n", guid.c_str(),
+  Serial.printf("firmware=0.6.0 guid=%s physical=%u\n", guid.c_str(),
                 IOT_PHYSICAL_OUTPUTS);
   Serial.println(
       "USB provisioning: PROVISION? or PROVISION {expected_revision,settings}; "
@@ -1989,6 +2913,7 @@ void loop() {
     return;
   }
   serialProvision();
+  replayAudit();
   if (restartPending) {
     if (uint32_t(millis() - restartAt) >= 1500) {
       Serial.flush();
@@ -2070,39 +2995,50 @@ void loop() {
   if (uint32_t(now - lastTick) >= 100) {
     lastTick = now;
     time_t epoch = time(nullptr);
-    const bool observed = maintainOccurrences(epoch) && recoverSchedules(epoch, now);
+    const bool observed =
+        maintainOccurrences(epoch) && recoverSchedules(epoch, now);
     controller.clockValid(observed && !bootHold && outputs.allKnown());
     Window windows[4];
     static Window candidates[maxSlots];
-    int selected[4]={-1,-1,-1,-1};
-    for (size_t i=0;i<config.slotCount;++i) {
-      const auto &s=config.slots[i];
-      auto w=observed ? evaluate(s,epoch,previousEpoch,revision) : Window{};
-      w.retired=w.open && occurrences.retired(w.begins);
-      candidates[i]=w;
+    int selected[4] = {-1, -1, -1, -1};
+    for (size_t i = 0; i < config.slotCount; ++i) {
+      const auto &s = config.slots[i];
+      auto w =
+          observed ? evaluate(s, epoch, previousEpoch, revision) : Window{};
+      w.retired = w.open && occurrences.retired(w.begins);
+      candidates[i] = w;
     }
-    selectScheduleWindows(config.slots,config.slotCount,candidates,controller,
-                          config.count,runScheduleSlot,now,windows,selected);
-    for (size_t zone=0;zone<config.count;++zone) {
-      plannedScheduleSlot[zone]=selected[zone];
-      plannedScheduleWindow[zone]=windows[zone];
+    selectScheduleWindows(config.slots, config.slotCount, candidates,
+                          controller, config.count, runScheduleSlot, now,
+                          windows, selected);
+    for (size_t zone = 0; zone < config.count; ++zone) {
+      plannedScheduleSlot[zone] = selected[zone];
+      plannedScheduleWindow[zone] = windows[zone];
     }
-    for (size_t i=0;i<config.slotCount;++i) {
-      const auto &s=config.slots[i];
-      const auto &w=candidates[i];
-      if (!config.zones[s.zone].enabled || config.zones[s.zone].mode==Mode::Dynamic ||
-          occurrences.contains(s.zone,w.occurrence) ||
-          (controller.run(s.zone).active && !runBlocksSchedule(controller.run(s.zone),now))) continue;
-      if (scheduleConflict(w,windows[s.zone],controller.run(s.zone).active)) {
-        if (!journal.consumeWindow(s.zone,w.occurrence,w.begins) ||
-            !scheduleObservation(i,w,"omitted",controller.run(s.zone).active
-                ? "active_run_conflict" : "schedule_overlap",2,selected[s.zone]))
+    for (size_t i = 0; i < config.slotCount; ++i) {
+      const auto &s = config.slots[i];
+      const auto &w = candidates[i];
+      if (!config.zones[s.zone].enabled ||
+          config.zones[s.zone].mode == Mode::Dynamic ||
+          occurrences.contains(s.zone, w.occurrence) ||
+          (controller.run(s.zone).active &&
+           !runBlocksSchedule(controller.run(s.zone), now)))
+        continue;
+      if (scheduleConflict(w, windows[s.zone], controller.run(s.zone).active)) {
+        if (!journal.consumeWindow(s.zone, w.occurrence, w.begins) ||
+            !scheduleObservation(i, w, "omitted",
+                                 controller.run(s.zone).active
+                                     ? "active_run_conflict"
+                                     : "schedule_overlap",
+                                 2, selected[s.zone]))
           controller.clockValid(false);
       }
     }
-    if (bootHold) controller.clockValid(false);
+    if (bootHold)
+      controller.clockValid(false);
     controller.tick(now, windows);
-    if (observed) previousEpoch = epoch;
+    if (observed)
+      previousEpoch = epoch;
   }
   if (uint32_t(now - lastSample) >= 900000) {
     lastSample = now;

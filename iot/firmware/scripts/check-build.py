@@ -10,8 +10,8 @@ import subprocess
 import sys
 import tempfile
 
-def verify_flash_layout(target):
-    for role in ("esp32_matrix", "esp32_sensor_bench", "esp32_remote_node"):
+def verify_flash_layout(target, roles=("esp32_matrix", "esp32_sensor_bench", "esp32_remote_node")):
+    for role in roles:
         build=target/".pio/build"/role
         report=json.loads((build/"flash-layout.json").read_text())
         assert report["application_offset"]=="0x50000", role
@@ -59,4 +59,6 @@ with tempfile.TemporaryDirectory(prefix="irrigation-build-check-") as temporary:
     print("Synthetic provisioning: compile/link only; binaries discarded", flush=True)
     subprocess.run(command, check=True)
     verify_flash_layout(target)
-print("Six builds passed; no binary uploaded or retained")
+    subprocess.run([sys.executable,"-m","platformio","run","-d",str(target),"-e","esp32_matrix_hardened"],check=True)
+    verify_flash_layout(target,("esp32_matrix_hardened",))
+print("Seven builds passed; hardened profile is a boot guard, not automatic encryption; no binary uploaded or retained")

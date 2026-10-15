@@ -6,7 +6,7 @@ subprocess.run([sys.executable,str(fw/'scripts/embed-portal.py'),'--check'],chec
 subprocess.run([sys.executable,str(fw/'tests/test_provision_usb.py')],check=True)
 subprocess.run([sys.executable,str(fw/'tests/test_flash_layout.py')],check=True)
 with tempfile.TemporaryDirectory(prefix='irrigation-native-') as tmp:
- for name in ('deadline','control','span','auth','recovery','time64','retention','diagnostics','portal','provision'):
+ for name in ('deadline','control','span','auth','recovery','time64','retention','diagnostics','portal','provision','timezones','queue','security','replay'):
   exe=Path(tmp)/name
   subprocess.run(['g++','-std=c++17','-Wall','-Wextra','-Werror','-fsanitize=undefined','-I'+str(fw/'include'),str(fw/'tests'/f'{name}.cpp'),'-o',str(exe)],check=True)
   subprocess.run([str(exe)],check=True)
@@ -23,4 +23,4 @@ with tempfile.TemporaryDirectory(prefix='irrigation-native-') as tmp:
   assert extracted==expected,fixture
   if data.get('configuration_hash'):assert hashlib.sha256(extracted).hexdigest()==data['configuration_hash'],fixture
   count+=1
- print(f'Native C++: 10 executables passed with UBSan; configuration byte/hash fixtures: {count}')
+ print(f'Native C++: 14 executables passed with UBSan; configuration byte/hash fixtures: {count}')

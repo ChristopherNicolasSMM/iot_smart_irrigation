@@ -38,8 +38,8 @@ Status: **Entregue/testado** = implementação e testes de software; **A validar
 |---|---|---|---|---|
 | HW-01 | P2 | Escolher ESP32, flash, sensores, válvulas, drivers e fonte | Parcial: proposta documentada em iot/docs | Lista e pinagem aprovadas; estado seguro e capacidades definidos |
 | HW-02 | P2 | Medir memória, TLS, armazenamento e limites de agenda/fila | HW-01/protocolo | Limites do Node não presumidos para ESP32 |
-| FW-01 | P2 | Firmware C++: drivers, controlador local e portal leve | Parcial: experimental 0.5.1 com seis builds aprovados; bancada pendente | Build reproduzível e mesmas regras verificadas |
-| FW-02 | P2 | Compilação/bancada/campo com usuário | Parcial: seis builds 0.5.1 aprovados, bancada/campo pendentes | Evidências físicas de boot, duração, sensores, falhas e retomada |
+| FW-01 | P2 | Firmware C++: drivers, controlador local e portal leve | Parcial: experimental 0.6.0, recuperação/fila/IANA; bancada pendente | Build reproduzível e mesmas regras verificadas |
+| FW-02 | P2 | Compilação/bancada/campo com usuário | Parcial: builds de software registrados por versão, bancada/campo pendentes | Evidências físicas de boot, duração, sensores, falhas e retomada |
 | EX-01 | P3 | MQTT e OTA | Piloto físico estável | Necessidade definida; confirmação/recuperação preservadas |
 | EX-02 | P3 | RS485, vazão, pressão e intertravamento de bomba | Hardware/necessidade | Drivers e proteções validados |
 | EX-03 | P3 | Hospedagem, stack de produção e eventual novo frontend | Piloto validado | Decisão de arquitetura e implantação revisadas |
@@ -129,7 +129,7 @@ Código para acionamento condicionado a driver/provisionamento, estático/dinâm
 | FW-03 | Completar recuperação de agendas perdidas, conflitos por agenda e retenção segura de ocorrências | Implementado no escopo 0.3.2: retenção/diagnóstico por agenda; target/bancada e histórico offline completo pendentes |
 | FW-04 | Validar HTTPS real, perfis locais, outbox/ACK e recursos TLS/NVS no ESP32 | Pendente |
 | FW-05 | Validar nó RS485, driver, perdas, alimentação e topologia 100 m | Pendente, depende HW-01 |
-| FW-06 | Provisionamento/segredos em produção e migração física de partições | Parcial 0.5.0: NVS/GUI/USB e recuperação; cifragem/produção, migração física e bancada pendentes |
+| FW-06 | Provisionamento/segredos em produção e migração física de partições | Parcial 0.6.0: backup cifrado, restauração retomável/hold, rotação e guard de boot; SDK/chaves/produção, migração física e bancada pendentes |
 | FW-08 | Portal local completo embutido | Implementado no escopo 0.4.0; navegador/API simulada e build alvo 0.5.1 aprovados, bancada pendente |
 
 Limites: UTC/BRT atual, datas até 2037, 64 horários expandidos, 128 ocorrências/conjunto, outbox 16, auditoria 64, uma UART RS485. Nó final econômico ainda não escolhido; perfil remoto usa ESP32 como referência. Firmware 0.2 é versão independente do portal 0.13; contrato remoto v1 preservado. Documentação: iot/firmware/README.md e iot/docs/VALIDACAO_FIRMWARE_V02.md.
@@ -183,3 +183,13 @@ Bloqueio de certificado superado no ambiente de compilação com autoridades já
 Seis builds 0.5.1 aprovados (três perfis padrão + três sintéticos), com conferência do aplicativo byte a byte em 0x50000 e imagens auxiliares fora das partições de dados. Time64 compilado no alvo. Dez executáveis C++/UBSan, cinco fixtures de bytes/hash, adaptador ArduinoJson, sete testes Python (quatro USB/três layout), 283 testes Node, sintaxe e 26 fixtures de contrato aprovados. Persistem avisos na dependência OneWire; recursos estáticos e limites em iot/docs/BUILD_FIRMWARE_V051.json e VALIDACAO_FIRMWARE_V051.md. Nenhum upload ou teste físico; binários de ensaio descartados.
 
 Próximo marco: usuário compilar/gravar 0.5.1 e testar Wi-Fi 2,4 GHz, USB e portal admin/operador, com saídas padrão desabilitadas. Usar upload normal do PlatformIO; factory.bin completo não preserva NVS em atualização. Migração física, memória dinâmica/TLS/NVS reais e FW-06 de produção continuam pendentes. Guia de primeiro acesso atualizado e diagnóstico de certificados incluído.
+
+## Firmware experimental 0.6.0 — recuperação e aprimoramentos, 15/10/2026
+
+FW-06: backup de perfil/configuração/calibração AES-256-GCM com senha externa, restauração USB no mesmo GUID por manifesto retomável, revisão/identidade validadas e quarentena até liberação explícita/novo token central. Fila migra sem apagar mensagens para metadados únicos com cancelamento admin por digest/motivo e oito registros recentes; troca de destino continua exigindo fila vazia. Cursor/loss em registro único; reenvio automático/manual dos eventos retidos conserva event_id e revisão para deduplicação central. FW-03b avança no escopo do anel de 64; amostras e histórico já rotacionado não são recuperados.
+
+FW-07 ampliado: 597 nomes IANA 2026e, 344 tabelas deduplicadas, transições em flash e regras futuras interpretadas pelo firmware, inclusive DST negativo/horários acima de 24h. Gap omitido/fold no primeiro instante; datas 2020–9999, sem retorno do limite de 2037. Mudanças legais exigem atualização da base. GUID/partições/contrato remoto preservados; migrações aditivas documentadas, sem downgrade direto para 0.5.x após queue_v2.
+
+Evidência: 14 executáveis C++/UBSan, cinco fixtures hash/bytes, dois adaptadores ArduinoJson reais; sete testes Python USB/layout e sete de backup; recuperação com falha em cada uma das 13 operações/idempotência; 163.755 instantes comparados contra a mesma base IANA; 285 testes Node, sintaxe e 26 fixtures/consistência OpenAPI. Chromium 149: 22 cenários em API HTTP sintética, desktop/celular, zero erros JS/overflow e inspeção visual. Sete builds alvo aprovados (três padrão, três sintéticos e hardened), com offset 0x50000, imagens fora das partições de dados e aplicativo combinado verificado byte a byte. Evidências em iot/docs/VALIDACAO_FIRMWARE_V06.md e BUILD_FIRMWARE_V06.json.
+
+**FW-06 de produção permanece parcial**: perfil hardened recusa boot sem flash/NVS encryption e secure boot, mas não prepara SDK/bootloader/partição de chaves/eFuses. Integração segura de produção e recuperação, proteção de transporte local, migração física, heap/TLS/NVS reais e FW-04/FW-05/HW-01/HW-02 continuam pendentes. Nenhuma placa gravada ou validação física realizada. Próximo marco: usuário testar USB/Wi-Fi/portal com saídas desabilitadas.

@@ -15,3 +15,5 @@ iot/firmware/include/provision.h
 # Private USB provisioning files and Python caches
 *.provision.private.json
 __pycache__/
+# Encrypted firmware backups (keep outside source control)
+*.irrfw

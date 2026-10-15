@@ -40,7 +40,7 @@ inline Window evaluate(const Schedule &s, time_t epoch, int64_t previousEpoch,
   if (!s.enabled || !s.durationSecond || s.durationSecond > 86400)
     return w;
   tm local{};
-  localtime_r(&epoch, &local);
+  zoneLocaltime(&epoch, &local);
   for (int offset = 0; offset < 2; ++offset) {
     tm day = local;
     day.tm_hour = 12;
@@ -48,7 +48,7 @@ inline Window evaluate(const Schedule &s, time_t epoch, int64_t previousEpoch,
     day.tm_sec = 0;
     day.tm_mday -= offset;
     day.tm_isdst = -1;
-    time_t dayEpoch = mktime(&day);
+    time_t dayEpoch = zoneMktime(&day);
     if (dayEpoch == time_t(-1))
       continue;
     const int weekday = day.tm_wday == 0 ? 7 : day.tm_wday;
@@ -59,7 +59,7 @@ inline Window evaluate(const Schedule &s, time_t epoch, int64_t previousEpoch,
     start.tm_min = (s.startSecond % 3600) / 60;
     start.tm_sec = s.startSecond % 60;
     start.tm_isdst = -1;
-    time_t begins = mktime(&start);
+    time_t begins = zoneMktime(&start);
     if (begins == time_t(-1) ||
         unsigned(start.tm_hour) != s.startSecond / 3600 ||
         unsigned(start.tm_min) != (s.startSecond % 3600) / 60)

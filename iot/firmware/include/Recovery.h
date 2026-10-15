@@ -11,7 +11,7 @@ inline bool visitUnobserved(const Schedule &s, int64_t from, time_t until,
       from <= 0 || int64_t(until) <= from) return true;
   const int64_t floor = int64_t(until) - 7 * 86400;
   tm day{};
-  localtime_r(&until, &day);
+  zoneLocaltime(&until, &day);
   for (unsigned offset = 0; offset < (s.date ? 1u : 9u); ++offset) {
     tm start = day;
     if (s.date) {
@@ -23,7 +23,7 @@ inline bool visitUnobserved(const Schedule &s, int64_t from, time_t until,
     start.tm_min = (s.startSecond % 3600) / 60;
     start.tm_sec = s.startSecond % 60;
     start.tm_isdst = -1;
-    const time_t begins = mktime(&start);
+    const time_t begins = zoneMktime(&start);
     if (begins == time_t(-1) || unsigned(start.tm_hour) != s.startSecond / 3600 ||
         unsigned(start.tm_min) != (s.startSecond % 3600) / 60) continue;
     if (!s.date && (start.tm_wday == 0 ? 7 : start.tm_wday) != s.weekday) continue;

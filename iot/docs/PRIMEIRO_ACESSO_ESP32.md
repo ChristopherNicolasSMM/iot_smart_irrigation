@@ -1,8 +1,8 @@
-# Primeiro build, Wi-Fi e acesso ao portal — firmware 0.5.1
+# Primeiro build, Wi-Fi e acesso ao portal — firmware 0.6.0
 
 Roteiro para ESP32 clássico WROOM-32/esp32dev. Esta entrega foi verificada em software; os passos abaixo ainda precisam ser executados na sua placa. Para este primeiro teste, use somente USB e mantenha as saídas físicas desabilitadas. Não é necessário conectar sensores ou válvulas.
 
-**Use a versão 0.5.1 ou posterior**, que corrige os endereços de gravação da plataforma. Não use binários antigos 0.5.0. Upload normal preserva as regiões de dados da tabela atual; não gravar firmware.factory.bin inteiro em placa que precisa preservar NVS.
+**Use a versão 0.6.0 atual**, que corrige os endereços de gravação da plataforma. Não use binários antigos 0.5.0. Upload normal preserva as regiões de dados da tabela atual; não gravar firmware.factory.bin inteiro em placa que precisa preservar NVS.
 
 ## 1. Atualizar e compilar
 
@@ -73,3 +73,5 @@ Para parâmetros avançados ou remoção explícita de senhas, o assistente acei
 ## Registrar o resultado da bancada
 
 Registrar versão, modelo/porta, sucesso/falha do build/upload, tempo de conexão, IP, acesso admin/operador e persistência após desligar/ligar. Nunca enviar senhas, token, CA privada ou arquivo de provisionamento. Testes de relé, sensores, RS485/100 m e TLS com portal central ficam para etapas posteriores.
+
+Na 0.6.0, usar o perfil padrão para o primeiro acesso. `esp32_matrix_hardened` exige preparação prévia de segurança da placa/SDK e bloqueará o boot no ambiente padrão. Backup e migrações: [RECUPERACAO_E_PRODUCAO_ESP32.md](RECUPERACAO_E_PRODUCAO_ESP32.md).

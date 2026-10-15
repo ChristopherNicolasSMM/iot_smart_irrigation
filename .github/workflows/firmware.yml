@@ -17,10 +17,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: python -m pip install platformio==6.1.19
+      - run: python -m pip install platformio==6.1.19 cryptography==50.0.2 pyserial==3.5
       - run: node --test tests/local-portal-model.test.js
       - run: node --check iot/firmware/portal/app.js
       - run: python iot/firmware/scripts/test-native.py
+      - run: python -m unittest discover -s iot/firmware/tests -p test_backup_device.py
       - run: pio pkg install -d iot/firmware -e esp32_matrix --library bblanchon/ArduinoJson@6.21.5 --no-save
       - run: python iot/firmware/scripts/test-provision-codec.py
       - run: python iot/firmware/scripts/check-build.py

@@ -52,11 +52,7 @@ inline bool parseConfiguration(JsonObjectConst c, FirmwareConfig &out,
     return fail("name_area_invalid");
   out = FirmwareConfig{};
   out.timezone = c["timezone"].as<String>();
-  // No IANA database in this first embedded profile: explicitly reject
-  // unsupported TZ.
-  if (out.timezone != "America/Sao_Paulo" && out.timezone != "UTC" &&
-      out.timezone != "Etc/UTC")
-    return fail("timezone_unsupported");
+  if (!findTimezone(out.timezone.c_str()))return fail("timezone_unsupported");
   if (!c["max_simultaneous"].is<unsigned>() ||
       c["max_simultaneous"].as<unsigned>() < 1 ||
       c["max_simultaneous"].as<unsigned>() > 4)

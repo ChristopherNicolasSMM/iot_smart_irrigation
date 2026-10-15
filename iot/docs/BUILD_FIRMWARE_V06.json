@@ -1,0 +1,97 @@
+{
+  "date": "2026-10-15",
+  "firmware": "0.6.0-experimental",
+  "platformio": "6.1.19",
+  "platform": "pioarduino 55.03.38-1",
+  "arduino": "3.3.8",
+  "idf": "5.5.4",
+  "board": "esp32dev",
+  "tls_verification": true,
+  "checksum_verification": true,
+  "scope": "Seven compile/link profiles, upload metadata and merged application bytes; no upload, boot, eFuse change or hardware execution. Hardened profile is a fail-closed guard with stock SDK, not prepared production encryption. Static RAM does not measure runtime heap/stack.",
+  "builds": [
+    {
+      "role": "esp32_matrix",
+      "profile": "default",
+      "ram_static_bytes": 66840,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1400664,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_sensor_bench",
+      "profile": "default",
+      "ram_static_bytes": 66984,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1420856,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_remote_node",
+      "profile": "default",
+      "ram_static_bytes": 61924,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1291009,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_matrix",
+      "profile": "synthetic_compile_only",
+      "ram_static_bytes": 66920,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1407900,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_sensor_bench",
+      "profile": "synthetic_compile_only",
+      "ram_static_bytes": 66984,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1421540,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_remote_node",
+      "profile": "synthetic_compile_only",
+      "ram_static_bytes": 61924,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1291913,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_matrix_hardened",
+      "profile": "hardened_guard_synthetic_compile_only",
+      "ram_static_bytes": 66920,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1407892,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    }
+  ],
+  "regression": {
+    "native_cpp_ubsan_executables": 14,
+    "configuration_hash_fixtures": 5,
+    "python_usb_layout_tests": 7,
+    "python_encrypted_backup_tests": 7,
+    "arduinojson_host_adapters": 2,
+    "node_tests": 285,
+    "contract_fixtures": 26,
+    "browser_synthetic_scenarios": 22,
+    "timezone_differential_instants": 163755,
+    "timezone_names": 597
+  },
+  "warnings": "Existing OneWire/GPIO dependency warnings and legacy reserved filesystem partition naming; not suppressed."
+}
