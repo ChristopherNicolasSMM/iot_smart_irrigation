@@ -24,3 +24,5 @@ Backlog canônico: [../../BACKLOG.md](../../BACKLOG.md). Contrato existente: [..
 
 - [Firmware 0.3.0: tempo de 64 bits](VALIDACAO_FIRMWARE_V03.md)
 - [Próximas entregas do firmware](PLANO_ENTREGAS_FIRMWARE.md)
+
+- [Firmware 0.3.1: retenção segura de ocorrências](VALIDACAO_FIRMWARE_V031.md)

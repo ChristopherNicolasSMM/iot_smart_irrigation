@@ -1,4 +1,4 @@
-# Firmware experimental 0.3.0
+# Firmware experimental 0.3.1
 
 ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicitamente autorizado pelo usuário com hardware ainda em avaliação. Compilação não comprova funcionamento físico.
 
@@ -78,7 +78,7 @@ npm test
 
 Executar os comandos acima a partir da raiz. Ambiente host requer g++, Python e Node. Resultados, limitações e roteiro físico: [../docs/VALIDACAO_FIRMWARE_V02.md](../docs/VALIDACAO_FIRMWARE_V02.md).
 
-Esta versão ainda não tem paridade integral com o simulador: fuso restrito UTC/São Paulo atual (BRT fixo), datas ISO com ano de quatro dígitos entre 2020 e 9999 (tempo de 64 bits obrigatório), limite 64 horários expandidos e 128 ocorrências persistidas por conjunto, sem retenção automática. Não retoma execução no boot; recuperação resumida de observação disponível na 0.2.1; detalhe por agenda e DST global permanecem pendentes. Falha/saturação deve ser diagnosticada, não apagada automaticamente.
+Esta versão ainda não tem paridade integral com o simulador: fuso restrito UTC/São Paulo atual (BRT fixo), datas ISO com ano de quatro dígitos entre 2020 e 9999 (tempo de 64 bits obrigatório), limite de 64 horários expandidos e journal de até 128 ocorrências recentes no dispositivo, com corte temporal/compactação automática na 0.3.1. Não retoma execução no boot; recuperação resumida de observação disponível na 0.2.1; detalhe por agenda e DST global permanecem pendentes. Falha/saturação deve ser diagnosticada, não apagada automaticamente.
 
 ## Recuperação 0.2.1
 
@@ -106,3 +106,9 @@ python iot/firmware/scripts/check-build.py
 ```
 
 Esse comando deve ser executado na raiz, compila em pasta temporária e descarta os binários sintéticos. Para gravar sua placa, use seu provisionamento e os comandos normais do [portal local](portal/README.md). Evidências e próximos passos em [VALIDACAO_FIRMWARE_V03.md](../docs/VALIDACAO_FIRMWARE_V03.md).
+
+## Retenção de ocorrências — 0.3.1
+
+A retenção já não esgota após 128 execuções acumuladas por conjunto. O journal recente e um corte temporal monotônico são persistidos no mesmo blob NVS antes de acionar saída. No primeiro upgrade, os hashes legados são preservados e janelas anteriores ao instante de migração não são retomadas. Não faça downgrade sem plano/backup. O limite de 128 registros **recentes** ainda existe para rajadas/configurações que excedam o orçamento; não há expulsão insegura de registros.
+
+Consulte [VALIDACAO_FIRMWARE_V031.md](../docs/VALIDACAO_FIRMWARE_V031.md) para formato, falhas, ensaio de 16 mil ocorrências, migração e limites. GUID e partições permanecem iguais. Diagnóstico informa corte, ocupação e capacidade do journal. A auditoria detalhada por agenda é a próxima entrega.

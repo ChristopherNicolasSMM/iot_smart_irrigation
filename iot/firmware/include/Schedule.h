@@ -63,6 +63,7 @@ inline Window evaluate(const Schedule &s, time_t epoch, int64_t previousEpoch,
     if (int64_t(epoch) < begins || int64_t(epoch) >= ends)
       continue;
     w.open = true;
+    w.begins = int64_t(begins);
     w.startNow = previousEpoch < begins && int64_t(epoch) - begins <= 2;
     w.remainingMs = uint32_t(ends - epoch) * 1000;
     // Stable per schedule/date/revision, FNV based; persistence journal stores

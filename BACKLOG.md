@@ -126,7 +126,7 @@ Código para acionamento condicionado a driver/provisionamento, estático/dinâm
 
 | ID | Próxima etapa de firmware | Estado |
 |---|---|---|
-| FW-03 | Completar recuperação de agendas perdidas, conflitos por agenda e retenção segura de ocorrências | Parcial: resumo na 0.2.1; retenção/conflitos detalhados pendentes |
+| FW-03 | Completar recuperação de agendas perdidas, conflitos por agenda e retenção segura de ocorrências | Parcial: resumo na 0.2.1 e retenção na 0.3.1; conflitos/recuperação detalhados pendentes |
 | FW-04 | Validar HTTPS real, perfis locais, outbox/ACK e recursos TLS/NVS no ESP32 | Pendente |
 | FW-05 | Validar nó RS485, driver, perdas, alimentação e topologia 100 m | Pendente, depende HW-01 |
 | FW-06 | Provisionamento/segredos em produção e migração física de partições | Pendente |
@@ -146,3 +146,9 @@ Confirmado portal local já existente e separado em iot/firmware/portal/LocalPor
 FW-07: removidas restrições explícitas de 2037/INT32_MAX. Plataforma fixada pioarduino 55.03.38-1, Arduino oficial 3.3.8/IDF 5.5.4, PlatformIO 6.1.19; assert impede time_t assinado menor que 64 bits e SDK anterior a 5. Calendário/relógio/checkpoint compartilham política ISO 2020–9999. Não promete SNTP além das convenções do SDK até 2104. Atualizadas APIs SHA256/SNTP e diagnóstico. GUID, NVS, partições e contrato do portal preservados; migração física não ensaiada.
 
 Seis executáveis C++/UBSan e cinco fixtures de bytes/hash aprovados, fronteira exata de 2038 e cenários 2040/2100/2400/9999; 26 fixtures de contrato, sintaxe e 269 testes do portal aprovados. Script de seis builds padrão/sintéticos em cópia temporária incluído no CI. Build target bloqueado antes de compilar por SSLCertVerificationError no download do core 3.3.8; nenhum dos seis builds confirmado. Sem gravação, ensaio físico ou promessa de placa pronta. Próximas entregas FW-03a/FW-03b/FW-08/FW-06 em iot/docs/PLANO_ENTREGAS_FIRMWARE.md.
+
+## Firmware experimental 0.3.1 — retenção, 15/10/2026
+
+FW-03a implementado em software: journal versionado `occ_v2` com corte temporal e registros na mesma gravação, CRC/validação estrutural, migração conservadora que preserva chaves legadas, cache auxiliar e corte que nunca recua. Remove o esgotamento por 128 execuções acumuladas por conjunto; mantém teto explícito de 128 registros recentes globais, com falha conservadora em rajadas excessivas. Retenção de pelo menos 24 h, compactação em incrementos de hora depois de 25 h do corte. Execução híbrida ativa não é interrompida só por compactação. GUID, partições, configurações e históricos centrais preservados; sem downgrade automático.
+
+Sete executáveis C++/UBSan e cinco fixtures de bytes/hash; 16000 acionamentos simulados em 250 dias com compactações, duplicatas e reinícios; falhas antes/depois do commit, truncamento, corrupção, capacidade e corte monotônico testados. Sintaxe, 26 fixtures de contrato e 269 testes do portal aprovados. Build target desta revisão bloqueado antes de compilar por SSLCertVerificationError no download do core Arduino 3.3.8; nenhum build confirmado. Sem gravação ou validação física. Detalhes em iot/docs/VALIDACAO_FIRMWARE_V031.md. Próximo: FW-03b, conflitos/recuperação detalhados por agenda e integração dos registros.

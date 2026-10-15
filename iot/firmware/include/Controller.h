@@ -21,6 +21,8 @@ struct Window {
   bool open = false, startNow = false;
   uint64_t occurrence = 0;
   uint32_t remainingMs = 0;
+  int64_t begins = 0;
+  bool retired = false;
 };
 struct Run {
   bool active = false;
@@ -37,6 +39,10 @@ struct Journal {
   virtual ~Journal() = default;
   // Persist occurrence BEFORE energizing; failure must fail closed.
   virtual bool consume(size_t slot, uint64_t occurrence) = 0;
+  virtual bool consumeWindow(size_t slot, uint64_t occurrence, int64_t) {
+    return consume(slot, occurrence);
+  }
+  virtual bool contains(size_t, uint64_t) const { return false; }
   virtual bool reserve(size_t, Source) { return true; }
   virtual void event(size_t slot, const char *kind, const char *reason,
                      Source source) = 0;
@@ -52,6 +58,7 @@ class Controller {
   uint64_t consumed_[4][128] = {};
   uint8_t consumedCount_[4] = {};
   bool used(size_t slot, uint64_t key) const {
+    if (journal.contains(slot, key)) return true;
     for (unsigned i = 0; i < consumedCount_[slot]; ++i)
       if (consumed_[slot][i] == key)
         return true;
@@ -126,8 +133,15 @@ public:
     return true;
   }
   void restoreOccurrence(size_t slot, uint64_t key) {
-    if (slot < 4 && key && !used(slot, key) && consumedCount_[slot] < 128)
-      consumed_[slot][consumedCount_[slot]++] = key;
+    if (slot >= 4 || !key || used(slot, key)) return;
+    if (consumedCount_[slot] == 128) {
+      for (size_t i=1;i<128;++i) consumed_[slot][i-1]=consumed_[slot][i];
+      consumedCount_[slot] = 127;
+    }
+    consumed_[slot][consumedCount_[slot]++] = key;
+  }
+  void clearOccurrenceCache() {
+    for (auto &count : consumedCount_) count = 0;
   }
   void clockValid(bool valid) { clock_ = valid; }
   void reading(size_t slot, const Reading &r) {
@@ -189,6 +203,7 @@ public:
       }
       if (!clock_ || !z.enabled)
         continue;
+      if (z.mode != Mode::Dynamic && w.retired) continue;
       if (z.mode == Mode::Hybrid && w.startNow && !used(i, w.occurrence)) {
         if (!moisture(i, now))
           journal.event(i, "omitted", "sensor_invalid", Source::Hybrid);
@@ -208,19 +223,13 @@ public:
           continue;
       }
       if (z.mode != Mode::Dynamic) {
-        if (consumedCount_[i] >= 128) {
-          z.enabled = false;
-          journal.event(i, "failed", "occurrence_budget_exhausted",
-                        Source::Static);
-          continue;
-        }
-        if (!journal.consume(i, w.occurrence)) {
+        if (!journal.consumeWindow(i, w.occurrence, w.begins)) {
           journal.event(i, "failed", "persistence_failed",
                         z.mode == Mode::Static ? Source::Static
                                                : Source::Hybrid);
           continue;
         }
-        consumed_[i][consumedCount_[i]++] = w.occurrence;
+        restoreOccurrence(i, w.occurrence);
       }
       uint32_t duration = z.maxMs;
       if (z.mode != Mode::Dynamic && w.remainingMs < duration)

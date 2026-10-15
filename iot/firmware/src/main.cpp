@@ -7,6 +7,7 @@
 #include "Provision.h"
 #include "RemoteProtocol.h"
 #include "Recovery.h"
+#include "OccurrenceLedger.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -62,6 +63,8 @@ uint8_t journalCount = 0;
 uint32_t lastTick = 0, lastSample = 0, lastPoll = 0, lastRead = 0;
 int64_t previousEpoch = 0;
 bool recoveryPending = true;
+OccurrenceLedger occurrences;
+bool occurrencesReady = false;
 uint32_t checkpointAt = 0;
 bool storageReady = false, bootHold = true;
 Reading moisture[4], tempReadings[4];
@@ -370,32 +373,40 @@ bool persistAudit(size_t slot, const char *kind, const char *reason,
     bootHold = true;
   return ok;
 }
+// One NVS blob contains both tombstone and records. A successful write must
+// precede both RAM mutation and GPIO/RS485 activation.
+bool saveOccurrences(const OccurrenceLedger &next) {
+  const bool saved=commitOccurrenceLedger(occurrences,next,
+      [](const uint8_t *bytes,size_t length) {
+        if (!lockStore()) return false;
+        const bool ok=store.putBytes("occ_v2",bytes,length)==length;
+        unlockStore();
+        return ok;
+      });
+  if (!saved) bootHold=true;
+  return saved;
+}
 struct EventJournal : Journal {
   bool reserve(size_t slot, Source source) override {
     return persistAudit(slot, "requested", "output_attempt", source);
   }
-  bool consume(size_t slot, uint64_t occurrence) override {
-    if (!lockStore())
+  bool contains(size_t slot, uint64_t key) const override {
+    return occurrencesReady && occurrences.contains(slot,key);
+  }
+  // All production calls must carry a civil window start; no untimed append.
+  bool consume(size_t, uint64_t) override { return false; }
+  bool consumeWindow(size_t slot, uint64_t key, int64_t begins) override {
+    if (!occurrencesReady) return false;
+    auto next=std::unique_ptr<OccurrenceLedger>(new (std::nothrow) OccurrenceLedger(occurrences));
+    if (!next) { bootHold=true; return false; }
+    auto result=next->add(slot,key,begins);
+    if (result==OccurrenceLedger::Result::Duplicate) return true;
+    if (result!=OccurrenceLedger::Result::Added) {
+      bootHold=true;
       return false;
-    String k = "occ" + String(slot);
-    uint64_t keys[128] = {};
-    size_t length = store.getBytesLength(k.c_str());
-    bool ok = length % 8 == 0 && length <= sizeof(keys);
-    if (ok && length)
-      store.getBytes(k.c_str(), keys, length);
-    size_t n = length / 8;
-    for (size_t i = 0; i < n; ++i)
-      if (keys[i] == occurrence) {
-        unlockStore();
-        return true;
-      }
-    if (ok && n < 128) {
-      keys[n++] = occurrence;
-      ok = store.putBytes(k.c_str(), keys, n * 8) == n * 8;
-    } else
-      ok = false;
-    unlockStore();
-    return ok;
+    }
+    if (!saveOccurrences(*next)) return false;
+    return true;
   }
   void event(size_t slot, const char *kind, const char *reason,
              Source source) override {
@@ -448,6 +459,25 @@ struct EventJournal : Journal {
   }
 } journal;
 Controller controller(outputs, journal);
+// The 24-hour horizon matches the maximum schedule duration. Compact at
+// hourly increments, not every loop. Migration fences all pre-upgrade windows
+// because legacy hashes do not carry timestamps; legacy keys remain untouched.
+bool maintainOccurrences(time_t epoch) {
+  if (!clockReady()) return false;
+  if (occurrencesReady && int64_t(epoch)<occurrences.floor) return false;
+  if (occurrencesReady && !occurrences.compactionDue(int64_t(epoch))) return true;
+  auto next=std::unique_ptr<OccurrenceLedger>(new (std::nothrow) OccurrenceLedger(occurrences));
+  if (!next) { bootHold=true; return false; }
+  const bool migrating=!occurrencesReady;
+  if (!(migrating ? next->advance(int64_t(epoch)) : next->compact(int64_t(epoch))) ||
+      !saveOccurrences(*next)) return false;
+  occurrencesReady=true;
+  controller.clearOccurrenceCache();
+  for (size_t i=0;i<config.count;++i)
+    if (!persistAudit(i,"retention",migrating ? "legacy_fenced" : "temporal_compaction",Source::Static))
+      return false;
+  return true;
+}
 // A checkpoint describes observation, not proof of valve execution. The last
 // minute before a power loss may be reported again as unobserved after boot.
 bool recoverSchedules(time_t epoch, uint32_t now) {
@@ -505,7 +535,8 @@ bool recoverSchedules(time_t epoch, uint32_t now) {
       if (!window.open) continue;
       // Also consume an interrupted open window: hybrid must not start late
       // on the next tick simply because moisture is below its threshold.
-      if (!journal.consume(s.zone, window.occurrence)) {
+      if (!occurrences.retired(window.begins) &&
+          !journal.consumeWindow(s.zone, window.occurrence, window.begins)) {
         bootHold = true;
         return false;
       }
@@ -623,20 +654,6 @@ bool applyEnvelope(const String &body, String &error) {
   tzset();
   previousEpoch = time(nullptr);
   recoveryPending = true;
-  if (lockStore()) {
-    for (unsigned i = 0; i < 4; ++i) {
-      String k = "occ" + String(i);
-      uint64_t keys[128] = {};
-      size_t len = store.getBytesLength(k.c_str());
-      if (len <= sizeof(keys) && len % 8 == 0) {
-        if (len)
-          store.getBytes(k.c_str(), keys, len);
-        for (size_t j = 0; j < len / 8; ++j)
-          controller.restoreOccurrence(i, keys[j]);
-      }
-    }
-    unlockStore();
-  }
   return true;
 }
 void handleCommand(JsonObjectConst c, bool local) {
@@ -715,12 +732,16 @@ void handleCommand(JsonObjectConst c, bool local) {
 }
 String statusJson(bool csrfToken) {
   DynamicJsonDocument d(4096);
-  d["firmware"] = "0.3.0-experimental";
+  d["firmware"] = "0.3.1-experimental";
   d["guid"] = guid;
   d["revision"] = revision;
   d["clock_valid"] = clockReady();
   d["time_t_bits"] = sizeof(time_t) * 8;
   d["calendar_max_year"] = maxCalendarYear;
+  d["occurrence_journal_ready"] = occurrencesReady;
+  d["occurrence_floor"] = occurrencesReady ? occurrences.floor : int64_t(0);
+  d["retained_occurrences"] = occurrences.count;
+  d["occurrence_recent_capacity"] = OccurrenceLedger::capacity;
   d["hardware_enabled"] = bool(IOT_PHYSICAL_OUTPUTS);
   d["boot_hold"] = bootHold;
   d["lost_events"] = lostEvents;
@@ -1429,6 +1450,18 @@ void setup() {
     Serial.println("storage_fault: outputs blocked");
     return;
   }
+  if (store.isKey("occ_v2")) {
+    const size_t length=store.getBytesLength("occ_v2");
+    auto bytes=std::unique_ptr<uint8_t[]>(new (std::nothrow) uint8_t[OccurrenceLedger::maxBytes]);
+    if (!bytes || length>OccurrenceLedger::maxBytes || !length ||
+        store.getBytes("occ_v2",bytes.get(),length)!=length ||
+        !occurrences.decode(bytes.get(),length)) {
+      storageReady=false;
+      Serial.println("occurrence_journal_fault: preserve NVS; outputs blocked");
+      return;
+    }
+    occurrencesReady=true;
+  }
   guid = store.getString("guid", "");
   if (!guid.length()) {
     guid = strlen(IOT_DEVICE_GUID) ? String(IOT_DEVICE_GUID) : uuid();
@@ -1502,7 +1535,7 @@ void setup() {
       xTaskCreatePinnedToCore(networkTask, "portal-network", 12288, nullptr, 1,
                               nullptr, 0);
   }
-  Serial.printf("firmware=0.3.0 guid=%s physical=%u\n", guid.c_str(),
+  Serial.printf("firmware=0.3.1 guid=%s physical=%u\n", guid.c_str(),
                 IOT_PHYSICAL_OUTPUTS);
   previousEpoch = time(nullptr);
 }
@@ -1566,13 +1599,15 @@ void loop() {
   if (uint32_t(now - lastTick) >= 100) {
     lastTick = now;
     time_t epoch = time(nullptr);
-    const bool observed = recoverSchedules(epoch, now);
+    const bool observed = maintainOccurrences(epoch) && recoverSchedules(epoch, now);
     controller.clockValid(observed && !bootHold && outputs.allKnown());
     Window windows[4];
     for (size_t i = 0; i < config.slotCount; ++i) {
       const auto &s = config.slots[i];
       auto w = observed ? evaluate(s, epoch, previousEpoch, revision) : Window{};
-      if (w.open && (!windows[s.zone].open || w.startNow))
+      w.retired = w.open && occurrences.retired(w.begins);
+      if (w.open && (!windows[s.zone].open ||
+          (!w.retired && (w.startNow || windows[s.zone].retired))))
         windows[s.zone] = w;
     }
     controller.tick(now, windows);
