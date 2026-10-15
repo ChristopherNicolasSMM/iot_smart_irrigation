@@ -17,6 +17,8 @@
 #include <atomic>
 #include <ctype.h>
 #include <esp_sntp.h>
+#include <esp_idf_version.h>
+static_assert(ESP_IDF_VERSION_MAJOR >= 5, "ESP-IDF 5+ required for system time64");
 #include <esp_system.h>
 #include <mbedtls/base64.h>
 #include <mbedtls/sha256.h>
@@ -89,13 +91,13 @@ String iso(time_t now) {
 }
 bool clockReady() {
   time_t n = time(nullptr);
-  return clockSynchronized.load() && int64_t(n) >= 1767225600LL &&
-         int64_t(n) <= 2147483646LL;
+  return clockSynchronized.load() && validClockEpoch(int64_t(n));
 }
 String digest(const String &raw) {
   uint8_t hash[32];
-  mbedtls_sha256_ret(reinterpret_cast<const unsigned char *>(raw.c_str()),
-                     raw.length(), hash, 0);
+  if (mbedtls_sha256(reinterpret_cast<const unsigned char *>(raw.c_str()),
+                     raw.length(), hash, 0) != 0)
+    return "";
   char out[65];
   for (int i = 0; i < 32; ++i)
     snprintf(out + i * 2, 3, "%02x", hash[i]);
@@ -461,8 +463,7 @@ bool recoverSchedules(time_t epoch, uint32_t now) {
       if (deserializeJson(checkpoint, raw) ||
           !checkpoint["epoch"].is<int64_t>() ||
           !checkpoint["revision"].is<uint32_t>() ||
-          checkpoint["epoch"].as<int64_t>() < 1767225600LL ||
-          checkpoint["epoch"].as<int64_t>() > 2147483646LL) {
+          !validClockEpoch(checkpoint["epoch"].as<int64_t>())) {
         bootHold = true;
         return false;
       }
@@ -714,10 +715,12 @@ void handleCommand(JsonObjectConst c, bool local) {
 }
 String statusJson(bool csrfToken) {
   DynamicJsonDocument d(4096);
-  d["firmware"] = "0.2.2-experimental";
+  d["firmware"] = "0.3.0-experimental";
   d["guid"] = guid;
   d["revision"] = revision;
   d["clock_valid"] = clockReady();
+  d["time_t_bits"] = sizeof(time_t) * 8;
+  d["calendar_max_year"] = maxCalendarYear;
   d["hardware_enabled"] = bool(IOT_PHYSICAL_OUTPUTS);
   d["boot_hold"] = bootHold;
   d["lost_events"] = lostEvents;
@@ -1489,7 +1492,7 @@ void setup() {
   if (strlen(IOT_WIFI_SSID)) {
     WiFi.mode(WIFI_STA);
     WiFi.begin(IOT_WIFI_SSID, IOT_WIFI_PASSWORD);
-    sntp_set_time_sync_notification_cb(
+    esp_sntp_set_time_sync_notification_cb(
         [](struct timeval *) { clockSynchronized.store(true); });
     configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
     if (strlen(IOT_ADMIN_PASSWORD) >= 12)
@@ -1499,7 +1502,7 @@ void setup() {
       xTaskCreatePinnedToCore(networkTask, "portal-network", 12288, nullptr, 1,
                               nullptr, 0);
   }
-  Serial.printf("firmware=0.2.2 guid=%s physical=%u\n", guid.c_str(),
+  Serial.printf("firmware=0.3.0 guid=%s physical=%u\n", guid.c_str(),
                 IOT_PHYSICAL_OUTPUTS);
   previousEpoch = time(nullptr);
 }

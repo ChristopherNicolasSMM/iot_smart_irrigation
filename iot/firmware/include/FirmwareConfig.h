@@ -181,16 +181,7 @@ inline bool parseConfiguration(JsonObjectConst c, FirmwareConfig &out,
       char tail;
       if (ds.length() != 10 ||
           sscanf(ds.c_str(), "%4d-%2d-%2d%c", &y, &m, &d, &tail) != 3 ||
-          y < 2020 || y > 2037 || m < 1 || m > 12 || d < 1 || d > 31)
-        return fail("date_invalid");
-      tm dt{};
-      dt.tm_year = y - 1900;
-      dt.tm_mon = m - 1;
-      dt.tm_mday = d;
-      dt.tm_hour = 12;
-      dt.tm_isdst = -1;
-      mktime(&dt);
-      if (dt.tm_year != y - 1900 || dt.tm_mon != m - 1 || dt.tm_mday != d)
+          !validCivilDate(y, m, d))
         return fail("date_invalid");
       date = y * 10000 + m * 100 + d;
     }

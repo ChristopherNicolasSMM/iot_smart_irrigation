@@ -21,3 +21,6 @@ Backlog canônico: [../../BACKLOG.md](../../BACKLOG.md). Contrato existente: [..
 - [Protocolo RS485 experimental](PROTOCOLO_RS485.md)
 
 - [Portal local embutido: compilação, gravação e acesso](../firmware/portal/README.md)
+
+- [Firmware 0.3.0: tempo de 64 bits](VALIDACAO_FIRMWARE_V03.md)
+- [Próximas entregas do firmware](PLANO_ENTREGAS_FIRMWARE.md)

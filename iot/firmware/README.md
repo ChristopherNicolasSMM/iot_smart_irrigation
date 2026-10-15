@@ -1,4 +1,4 @@
-# Firmware experimental 0.2.2
+# Firmware experimental 0.3.0
 
 ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicitamente autorizado pelo usuário com hardware ainda em avaliação. Compilação não comprova funcionamento físico.
 
@@ -21,7 +21,7 @@ pio run -e esp32_sensor_bench
 pio run -e esp32_remote_node
 ```
 
-Todos usam Arduino-ESP32 2.0.17 via espressif32 6.10.0, ArduinoJson 6.21.5. Bancada/nó incluem OneWire 2.3.8 e DallasTemperature 3.11.0. PlatformIO Core usado: 6.1.18. Bibliotecas não têm suas licenças substituídas pela licença do projeto.
+Todos usam Arduino-ESP32 3.3.8 / ESP-IDF 5.5.4 via plataforma comunitária pioarduino 55.03.38-1 fixada no platformio.ini, com ArduinoJson 6.21.5. Bancada/nó incluem OneWire 2.3.8 e DallasTemperature 3.11.0. PlatformIO Core requerido/usado: 6.1.19. Bibliotecas não têm suas licenças substituídas pela licença do projeto.
 
 `esp32_matrix`: uma UART RS485 para barramento linear ou hub ativo a definir. NÃO suporta estrela passiva de quatro cabos longos. `esp32_sensor_bench`: quatro sensores de cada tipo/relés por cabos curtos. `esp32_remote_node`: referência ESP32 para um conjunto local; não é promessa de menor custo do nó final. Umidade e temperatura opcionais; um relé local no GPIO25.
 
@@ -78,7 +78,7 @@ npm test
 
 Executar os comandos acima a partir da raiz. Ambiente host requer g++, Python e Node. Resultados, limitações e roteiro físico: [../docs/VALIDACAO_FIRMWARE_V02.md](../docs/VALIDACAO_FIRMWARE_V02.md).
 
-Esta versão ainda não tem paridade integral com o simulador: fuso restrito UTC/São Paulo atual (BRT fixo), datas 2020–2037, limite 64 horários expandidos e 128 ocorrências persistidas por conjunto, sem retenção automática. Não retoma execução no boot; recuperação resumida de observação disponível na 0.2.1; detalhe por agenda e DST global permanecem pendentes. Falha/saturação deve ser diagnosticada, não apagada automaticamente.
+Esta versão ainda não tem paridade integral com o simulador: fuso restrito UTC/São Paulo atual (BRT fixo), datas ISO com ano de quatro dígitos entre 2020 e 9999 (tempo de 64 bits obrigatório), limite 64 horários expandidos e 128 ocorrências persistidas por conjunto, sem retenção automática. Não retoma execução no boot; recuperação resumida de observação disponível na 0.2.1; detalhe por agenda e DST global permanecem pendentes. Falha/saturação deve ser diagnosticada, não apagada automaticamente.
 
 ## Recuperação 0.2.1
 
@@ -89,3 +89,20 @@ O resumo é de períodos não observados, não prova de irrigação perdida: pod
 ## Portal incluído na flash — 0.2.2
 
 O portal local está separado em [portal/LocalPortalPage.h](portal/LocalPortalPage.h) e integrado ao executável por `PROGMEM`/`send_P`. Compilar e gravar o firmware provisionado inclui a página na memória, sem `uploadfs` ou dependências web externas. Veja [instruções de compilação, gravação e acesso](portal/README.md). Padrões de fábrica continuam sem Wi-Fi/saídas; o portal requer Wi-Fi e senha admin de pelo menos 12 caracteres no arquivo privado de provisionamento. O portal central Node.js continua separado.
+
+## Tempo de 64 bits — 0.3.0
+
+Removidos os limites de 2037/INT32_MAX no calendário, no relógio válido e nos checkpoints. Compilação exige `sizeof(time_t) >= 8`, tipo assinado e ESP-IDF 5+. Não force uma definição de time_t nem desabilite esses asserts: o relógio, libc e TLS precisam concordar. O diagnóstico `/api/state` inclui `time_t_bits` e `calendar_max_year`.
+
+O limite de ano 9999 é o formato ISO de quatro dígitos aceito nesta versão, não promessa de operação física ou de SNTP por milênios. O SDK possui convenções de eras NTP documentadas até 2104; não foi implementado um cliente NTP independente dessas convenções. UTC/BRT fixo continua sendo uma limitação separada.
+
+A plataforma de build mudou, mas os GUIDs, chaves NVS, esquema de configuração, partições e protocolo central não foram alterados. As chaves epoch persistidas já eram int64. Não apague NVS para atualizar. A migração física entre versões do framework ainda exige bancada.
+
+Para conferir os três perfis padrão e os três com provisionamento sintético, sem tocar nas credenciais do usuário e sem upload:
+
+```sh
+python -m pip install platformio==6.1.19
+python iot/firmware/scripts/check-build.py
+```
+
+Esse comando deve ser executado na raiz, compila em pasta temporária e descarta os binários sintéticos. Para gravar sua placa, use seu provisionamento e os comandos normais do [portal local](portal/README.md). Evidências e próximos passos em [VALIDACAO_FIRMWARE_V03.md](../docs/VALIDACAO_FIRMWARE_V03.md).

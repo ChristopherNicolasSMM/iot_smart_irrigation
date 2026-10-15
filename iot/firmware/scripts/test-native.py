@@ -3,7 +3,7 @@ import subprocess,tempfile,json,hashlib
 fw=Path(__file__).resolve().parents[1]
 root=fw.parents[1]
 with tempfile.TemporaryDirectory(prefix='irrigation-native-') as tmp:
- for name in ('deadline','control','span','auth','recovery'):
+ for name in ('deadline','control','span','auth','recovery','time64'):
   exe=Path(tmp)/name
   subprocess.run(['g++','-std=c++17','-Wall','-Wextra','-Werror','-fsanitize=undefined','-I'+str(fw/'include'),str(fw/'tests'/f'{name}.cpp'),'-o',str(exe)],check=True)
   subprocess.run([str(exe)],check=True)
@@ -20,4 +20,4 @@ with tempfile.TemporaryDirectory(prefix='irrigation-native-') as tmp:
   assert extracted==expected,fixture
   if data.get('configuration_hash'):assert hashlib.sha256(extracted).hexdigest()==data['configuration_hash'],fixture
   count+=1
- print(f'Native C++: 5 executables passed with UBSan; configuration byte/hash fixtures: {count}')
+ print(f'Native C++: 6 executables passed with UBSan; configuration byte/hash fixtures: {count}')

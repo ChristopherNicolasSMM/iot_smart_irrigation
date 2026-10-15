@@ -126,7 +126,7 @@ Código para acionamento condicionado a driver/provisionamento, estático/dinâm
 
 | ID | Próxima etapa de firmware | Estado |
 |---|---|---|
-| FW-03 | Completar recuperação de agendas perdidas, conflitos por agenda e retenção segura de ocorrências | Pendente; limites iniciais em VALIDACAO_FIRMWARE_V02.md |
+| FW-03 | Completar recuperação de agendas perdidas, conflitos por agenda e retenção segura de ocorrências | Parcial: resumo na 0.2.1; retenção/conflitos detalhados pendentes |
 | FW-04 | Validar HTTPS real, perfis locais, outbox/ACK e recursos TLS/NVS no ESP32 | Pendente |
 | FW-05 | Validar nó RS485, driver, perdas, alimentação e topologia 100 m | Pendente, depende HW-01 |
 | FW-06 | Provisionamento/segredos em produção e migração física de partições | Pendente |
@@ -140,3 +140,9 @@ FW-03 avançou parcialmente: checkpoint NVS aditivo por revisão, resumo local d
 ## Firmware experimental 0.2.2 — portal embutido, 15/10/2026
 
 Confirmado portal local já existente e separado em iot/firmware/portal/LocalPortalPage.h, incluído pelo firmware em flash PROGMEM e servido por send_P. Sem partição de arquivos ou uploadfs. Documentadas compilação/upload/acesso e condições de provisionamento. Portal central Node.js permanece separado; interface local atual oferece estado e teste/parada, sem editor visual completo. Publicação solicitada pelo usuário inclui a documentação IoT e firmware 0.2/0.2.1 antes locais. Cinco executáveis nativos C++/UBSan e cinco fixtures de bytes/hash aprovados; página compila em host com stub PROGMEM e JavaScript passa no node --check. Sintaxe do portal central, 26 fixtures de contrato e 269 testes aprovados. Isso não equivale a build ESP32: framework bloqueado nos downloads anteriores e PlatformIO ausente no ambiente atual. Sem placa conectada, gravação ou validação física.
+
+## Firmware experimental 0.3.0 — tempo64, 15/10/2026
+
+FW-07: removidas restrições explícitas de 2037/INT32_MAX. Plataforma fixada pioarduino 55.03.38-1, Arduino oficial 3.3.8/IDF 5.5.4, PlatformIO 6.1.19; assert impede time_t assinado menor que 64 bits e SDK anterior a 5. Calendário/relógio/checkpoint compartilham política ISO 2020–9999. Não promete SNTP além das convenções do SDK até 2104. Atualizadas APIs SHA256/SNTP e diagnóstico. GUID, NVS, partições e contrato do portal preservados; migração física não ensaiada.
+
+Seis executáveis C++/UBSan e cinco fixtures de bytes/hash aprovados, fronteira exata de 2038 e cenários 2040/2100/2400/9999; 26 fixtures de contrato, sintaxe e 269 testes do portal aprovados. Script de seis builds padrão/sintéticos em cópia temporária incluído no CI. Build target bloqueado antes de compilar por SSLCertVerificationError no download do core 3.3.8; nenhum dos seis builds confirmado. Sem gravação, ensaio físico ou promessa de placa pronta. Próximas entregas FW-03a/FW-03b/FW-08/FW-06 em iot/docs/PLANO_ENTREGAS_FIRMWARE.md.
