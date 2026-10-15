@@ -12,3 +12,6 @@ iot/firmware/.pio/
 iot/firmware/.vscode/
 iot/firmware/include/secrets.h
 iot/firmware/include/provision.h
+# Private USB provisioning files and Python caches
+*.provision.private.json
+__pycache__/

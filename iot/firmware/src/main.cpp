@@ -1,16 +1,16 @@
-#include "Auth.h"
 #include "../portal/LocalPortalPage.h"
+#include "Auth.h"
 #include "Controller.h"
 #include "FirmwareConfig.h"
 #include "HardwareConfig.h"
 #include "JsonSpan.h"
-#include "Provision.h"
-#include "RemoteProtocol.h"
-#include "Recovery.h"
-#include "OccurrenceLedger.h"
-#include "ScheduleDiagnostics.h"
 #include "LocalPortalPolicy.h"
-#include <errno.h>
+#include "OccurrenceLedger.h"
+#include "Provision.h"
+#include "ProvisionCodec.h"
+#include "Recovery.h"
+#include "RemoteProtocol.h"
+#include "ScheduleDiagnostics.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -20,8 +20,10 @@
 #include <WiFiClientSecure.h>
 #include <atomic>
 #include <ctype.h>
-#include <esp_sntp.h>
+#include <errno.h>
 #include <esp_idf_version.h>
+#include <esp_sntp.h>
+#include <mbedtls/x509_crt.h>
 static_assert(ESP_IDF_VERSION_MAJOR >= 5, "ESP-IDF 5+ required for system time64");
 #include <esp_system.h>
 #include <mbedtls/base64.h>
@@ -41,6 +43,13 @@ using namespace irrigation;
 constexpr size_t bodyLimit = 16384;
 constexpr uint32_t linkLeaseMs = 3000;
 Preferences store;
+ProvisionSettings provision;
+uint32_t provisionRevision = 0, restartAt = 0;
+bool provisionFault = false, restartPending = false, usbProvisionWindow = true;
+String serialProvisionLine;
+bool serialProvisionOverflow = false;
+uint32_t serialProvisionLast = 0;
+
 SemaphoreHandle_t storeMutex;
 QueueHandle_t incoming;
 WebServer web(80);
@@ -821,15 +830,246 @@ void handleCommand(JsonObjectConst c, bool local) {
       slot, millis(), c["duration_s"].as<unsigned>() * 1000, source == "test");
   (void)ok;
 }
+
+ProvisionSettings compiledProvision() {
+  ProvisionSettings p;
+  p.ssid = IOT_WIFI_SSID;
+  p.wifiPassword = IOT_WIFI_PASSWORD;
+  p.adminPassword = IOT_ADMIN_PASSWORD;
+  p.operatorPassword = IOT_OPERATOR_PASSWORD;
+  p.portalUrl = IOT_PORTAL_URL;
+  p.deviceToken = IOT_DEVICE_TOKEN;
+  p.portalCa = IOT_PORTAL_CA;
+  for (unsigned i = 0; i < 4; ++i) {
+    p.actuators[i] = actuatorBinding[i];
+    p.moisture[i] = moistureBinding[i];
+    p.temperature[i] = temperatureBinding[i];
+  }
+  return p;
+}
+bool provisionCertificate(const ProvisionSettings &p) {
+  if (p.portalUrl.empty())
+    return true;
+  mbedtls_x509_crt ca;
+  mbedtls_x509_crt_init(&ca);
+  const int code = mbedtls_x509_crt_parse(
+      &ca, reinterpret_cast<const unsigned char *>(p.portalCa.c_str()),
+      p.portalCa.size() + 1);
+  mbedtls_x509_crt_free(&ca);
+  return code == 0;
+}
+void loadProvision() {
+  provision = compiledProvision();
+  if (store.isKey("prov_v1")) {
+    const String record = store.getString("prov_v1", "");
+    DynamicJsonDocument doc(24576);
+    size_t begin = 0, end = 0;
+    String error;
+    ProvisionSettings saved;
+    bool valid =
+        record.length() <= bodyLimit && !deserializeJson(doc, record) &&
+        doc["schema_version"] == 1 && doc["profile_revision"].is<uint32_t>() &&
+        doc["profile_revision"].as<uint32_t>() > 0 &&
+        doc["settings_hash"].as<String>().length() == 64 &&
+        doc["settings"].is<JsonObject>() &&
+        objectMember(std::string(record.c_str(), record.length()), "settings",
+                     begin, end) &&
+        digest(record.substring(begin, end)) ==
+            doc["settings_hash"].as<String>() &&
+        provisionPatch(doc["settings"].as<JsonObjectConst>(), saved, error) &&
+        provisionCertificate(saved);
+    if (valid) {
+      provision = std::move(saved);
+      provisionRevision = doc["profile_revision"];
+    } else {
+      provisionFault = true;
+      Serial.println(
+          "provision_fault: network blocked; recover via USB, preserve NVS");
+    }
+  } else if (!provision.ssid.empty() && (validateProvision(provision) ||
+                                         !provisionCertificate(provision))) {
+    provisionFault = true;
+    Serial.println("compiled_provision_invalid: recover via USB");
+  }
+  for (unsigned i = 0; i < 4; ++i) {
+    actuatorBinding[i] = provision.actuators[i].c_str();
+    moistureBinding[i] = provision.moisture[i].c_str();
+    temperatureBinding[i] = provision.temperature[i].c_str();
+  }
+}
+String provisionStatus() {
+  DynamicJsonDocument doc(3072);
+  JsonObject result = doc.to<JsonObject>();
+  provisionJson(result, provision, false);
+  result["profile_revision"] = provisionRevision;
+  result["guid"] = guid;
+  result["provision_fault"] = provisionFault;
+  result["restart_pending"] = restartPending;
+  result["wifi_connected"] = WiFi.status() == WL_CONNECTED;
+  result["ip"] =
+      WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : String();
+  result["usb_window_open"] = usbProvisionWindow && millis() < 180000;
+  String raw;
+  serializeJson(doc, raw);
+  return raw;
+}
+bool saveProvision(const String &body, bool authorized, String &error) {
+  if (body.length() > bodyLimit - 512) {
+    error = "provision_too_large";
+    return false;
+  }
+  ProvisionSettings candidate = provision;
+  uint32_t expected = 0;
+  { // The request document must be released before serializing the new profile.
+    DynamicJsonDocument doc(24576);
+    if (deserializeJson(doc, body, DeserializationOption::NestingLimit(8)) ||
+        !doc["expected_revision"].is<uint32_t>() ||
+        !doc["settings"].is<JsonObject>()) {
+      error = "provision_request_invalid";
+      return false;
+    }
+    for (JsonPairConst pair : doc.as<JsonObjectConst>())
+      if (strcmp(pair.key().c_str(), "expected_revision") &&
+          strcmp(pair.key().c_str(), "settings")) {
+        error = "provision_field_unknown";
+        return false;
+      }
+    expected = doc["expected_revision"];
+    if (!provisionPatch(doc["settings"].as<JsonObjectConst>(), candidate,
+                        error))
+      return false;
+  }
+  const bool idle = !controller.activeCount() && !nodeLease.active() &&
+                    (!IOT_PHYSICAL_OUTPUTS || outputs.allKnown());
+  // Queue records have no destination: never redirect retained data to a new
+  // origin.
+  if (!lockStore()) {
+    error = "storage_busy";
+    return false;
+  }
+  unsigned head = 0, count = 0;
+  const String meta = store.getString("qmeta", "0,0");
+  const bool queueEmpty = sscanf(meta.c_str(), "%u,%u", &head, &count) == 2 &&
+                          head < 16 && count == 0;
+  unlockStore();
+  const char *reason = provisionWriteRejection(
+      authorized, idle, restartPending, expected, provisionRevision,
+      candidate.portalUrl != provision.portalUrl, queueEmpty);
+  if (reason) {
+    error = reason;
+    return false;
+  }
+  if (!provisionCertificate(candidate)) {
+    error = "portal_ca_invalid";
+    return false;
+  }
+  DynamicJsonDocument settings(24576);
+  provisionJson(settings.to<JsonObject>(), candidate, true);
+  if (settings.overflowed()) {
+    error = "provision_too_large";
+    return false;
+  }
+  String raw;
+  serializeJson(settings, raw);
+  const String hash = digest(raw);
+  const String record = String("{\"schema_version\":1,\"profile_revision\":") +
+                        String(provisionRevision + 1) +
+                        ",\"settings_hash\":\"" + hash +
+                        "\",\"settings\":" + raw + "}";
+  if (hash.length() != 64 || record.length() > bodyLimit) {
+    error = "provision_too_large";
+    return false;
+  }
+  if (!lockStore()) {
+    error = "storage_busy";
+    return false;
+  }
+  const bool ok = store.putString("prov_v1", record) == record.length();
+  unlockStore();
+  if (!ok) {
+    error = "provision_persistence_failed";
+    return false;
+  }
+  // Apply only after reboot. Network task keeps using the old immutable
+  // snapshot.
+  bootHold = true;
+  restartPending = true;
+  restartAt = millis();
+  return true;
+}
+void serialProvision() {
+  // Physical recovery is available only during the first three minutes after
+  // reset.
+  const uint32_t now = millis();
+  if (now >= 180000)
+    usbProvisionWindow = false;
+  if ((serialProvisionLine.length() &&
+       uint32_t(now - serialProvisionLast) > 15000)) {
+    serialProvisionLine = "";
+    serialProvisionOverflow = false;
+  }
+  for (unsigned budget = 0; budget < 256 && Serial.available(); ++budget) {
+    const char c = Serial.read();
+    if (c == '\r')
+      continue;
+    if (c == '\n') {
+      if (serialProvisionOverflow)
+        Serial.println("PROVISION_RESULT "
+                       "{\"saved\":false,\"error\":\"line_too_large_or_usb_"
+                       "window_closed\"}");
+      else if (serialProvisionLine == "PROVISION?")
+        Serial.println(String("PROVISION_STATUS ") + provisionStatus());
+      else if (serialProvisionLine.startsWith("PROVISION ")) {
+        if (!usbProvisionWindow) {
+          Serial.println("PROVISION_RESULT "
+                         "{\"saved\":false,\"error\":\"usb_window_closed\"}");
+          serialProvisionLine = "";
+          continue;
+        }
+        String error;
+        const bool ok =
+            saveProvision(serialProvisionLine.substring(10), true, error);
+        DynamicJsonDocument result(384);
+        result["saved"] = ok;
+        result["restart_pending"] = ok;
+        if (!ok)
+          result["error"] = error;
+        String raw;
+        serializeJson(result, raw);
+        Serial.println(String("PROVISION_RESULT ") + raw);
+      }
+      serialProvisionLine = "";
+      serialProvisionOverflow = false;
+    } else if (!serialProvisionOverflow) {
+      if (serialProvisionLine.length() >=
+          (usbProvisionWindow ? bodyLimit : 64)) {
+        serialProvisionLine = "";
+        serialProvisionOverflow = true;
+      } else
+        serialProvisionLine += c;
+    }
+    serialProvisionLast = now;
+  }
+}
+
 String statusJson(bool csrfToken,int role=0) {
   DynamicJsonDocument d(4096);
-  d["firmware"] = "0.4.0-experimental";
+  d["firmware"] = "0.5.0-experimental";
+  d["wifi_connected"] = WiFi.status() == WL_CONNECTED;
+  d["ip"] =
+      WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : String();
+  d["restart_pending"] = restartPending;
   d["guid"] = guid;
   if (role) {
     d["local_role"]=role==2 ? "admin" : "operator";
-    d["configuration_authority"]=strlen(IOT_PORTAL_URL) || IRRIGATION_REMOTE_NODE ? "central" : "local";
+    d["configuration_authority"] =
+        strlen(provision.portalUrl.c_str()) || IRRIGATION_REMOTE_NODE
+            ? "central"
+            : "local";
     JsonObject capabilities=d.createNestedObject("capabilities");
-    capabilities["configure"]=role==2 && !strlen(IOT_PORTAL_URL) && !IRRIGATION_REMOTE_NODE;
+    capabilities["configure"] = role == 2 &&
+                                !strlen(provision.portalUrl.c_str()) &&
+                                !IRRIGATION_REMOTE_NODE;
     capabilities["calibrate"]=role==2 && !IRRIGATION_ROLE_MATRIX;
     capabilities["outbox"]=role==2;
     capabilities["command"]=!IRRIGATION_REMOTE_NODE;
@@ -884,11 +1124,13 @@ int authenticate() {
            provided = web.header("Authorization");
     return credentialMatches(provided.c_str(), expected.c_str());
   };
-  if (strlen(IOT_ADMIN_PASSWORD) >= 12 && matches("admin", IOT_ADMIN_PASSWORD))
+  if (strlen(provision.adminPassword.c_str()) >= 12 &&
+      matches("admin", provision.adminPassword.c_str()))
     return 2;
-  if (strlen(IOT_OPERATOR_PASSWORD) >= 12 &&
-      strcmp(IOT_OPERATOR_PASSWORD, IOT_ADMIN_PASSWORD) &&
-      matches("operador", IOT_OPERATOR_PASSWORD))
+  if (strlen(provision.operatorPassword.c_str()) >= 12 &&
+      strcmp(provision.operatorPassword.c_str(),
+             provision.adminPassword.c_str()) &&
+      matches("operador", provision.operatorPassword.c_str()))
     return 1;
   web.requestAuthentication(BASIC_AUTH, "Irrigation");
   return 0;
@@ -917,6 +1159,31 @@ void localPortal() {
     if (!role) return;
     web.sendHeader("Cache-Control", "no-store");
     web.send(200, "application/json", statusJson(true,role));
+  });
+  web.on("/api/provisioning", HTTP_GET, [] {
+    if (!administrator())
+      return;
+    web.sendHeader("Cache-Control", "no-store");
+    web.send(200, "application/json", provisionStatus());
+  });
+  web.on("/api/provisioning", HTTP_POST, [] {
+    if (!administrator())
+      return;
+    if (web.header("X-CSRF-Token") != csrf) {
+      web.send(403, "application/json", "{\"error\":\"csrf_invalid\"}");
+      return;
+    }
+    String error;
+    const bool ok = saveProvision(web.arg("plain"), true, error);
+    DynamicJsonDocument result(384);
+    result["saved"] = ok;
+    result["restart_pending"] = ok;
+    if (!ok)
+      result["error"] = error;
+    String raw;
+    serializeJson(result, raw);
+    web.sendHeader("Cache-Control", "no-store");
+    web.send(ok ? 200 : 409, "application/json", raw);
   });
   web.on("/api/configuration", HTTP_GET, [] {
     if (!administrator())
@@ -1117,7 +1384,7 @@ void localPortal() {
       web.send(403, "application/json", "{}");
       return;
     }
-    if (IRRIGATION_REMOTE_NODE || strlen(IOT_PORTAL_URL)) {
+    if (IRRIGATION_REMOTE_NODE || strlen(provision.portalUrl.c_str())) {
       web.send(409, "application/json",
                "{\"error\":\"portal_is_configuration_authority\"}");
       return;
@@ -1146,8 +1413,10 @@ void localPortal() {
         !draft["configuration"].is<JsonObject>()) {
       web.send(400,"application/json","{\"error\":\"draft_invalid\"}");return;
     }
-    reason=draftRejection(2,true,strlen(IOT_PORTAL_URL),IRRIGATION_REMOTE_NODE,
-                                     controller.activeCount(),draft["expected_revision"].as<uint32_t>(),revision);
+    reason =
+        draftRejection(2, true, strlen(provision.portalUrl.c_str()),
+                       IRRIGATION_REMOTE_NODE, controller.activeCount(),
+                       draft["expected_revision"].as<uint32_t>(), revision);
     }
     if (reason) {
       web.send(409,"application/json",String("{\"error\":\"")+reason+"\"}");return;
@@ -1207,19 +1476,21 @@ int api(const String &path, const String &body, String &response) {
   if (authBlocked.load())
     return -3;
   if (WiFi.status() != WL_CONNECTED ||
-      !String(IOT_PORTAL_URL).startsWith("https://") ||
-      !strlen(IOT_PORTAL_CA) || !strlen(IOT_DEVICE_TOKEN) || !clockReady())
+      !String(provision.portalUrl.c_str()).startsWith("https://") ||
+      !strlen(provision.portalCa.c_str()) ||
+      !strlen(provision.deviceToken.c_str()) || !clockReady())
     return -1;
   WiFiClientSecure tls;
-  tls.setCACert(IOT_PORTAL_CA);
+  tls.setCACert(provision.portalCa.c_str());
   tls.setTimeout(3);
   HTTPClient http;
   http.setConnectTimeout(2000);
   http.setTimeout(3000);
   http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-  if (!http.begin(tls, String(IOT_PORTAL_URL) + path))
+  if (!http.begin(tls, String(provision.portalUrl.c_str()) + path))
     return -1;
-  http.addHeader("Authorization", String("Bearer ") + IOT_DEVICE_TOKEN);
+  http.addHeader("Authorization",
+                 String("Bearer ") + provision.deviceToken.c_str());
   http.addHeader("Content-Type", "application/json");
   int code = body.length() ? http.POST(body) : http.GET();
   if (code == 401 || code == 403)
@@ -1638,6 +1909,7 @@ void setup() {
     storageReady = false;
     Serial.println("GUID mismatch: preserve identity, fix provisioning");
   }
+  loadProvision();
   bootId = uuid();
   csrf = uuid();
   esp_fill_random(&nodeBootToken, sizeof(nodeBootToken));
@@ -1682,28 +1954,33 @@ void setup() {
   }
   // Boot never resumes outputs; retain hold if recovery/fault or remote state
   // unknown.
-  bootHold = !storageReady;
+  bootHold = !storageReady || provisionFault;
   for (unsigned i = 0; i < config.count; ++i) {
     String key = "run" + String(i);
     if (store.getBool(key.c_str(), false))
       journal.event(i, "interrupted", "restart_interrupted", Source::Manual);
     outputs.off(i);
   }
-  if (strlen(IOT_WIFI_SSID)) {
+  if (!provisionFault && strlen(provision.ssid.c_str())) {
+    WiFi.persistent(false);
+    WiFi.setAutoReconnect(true);
     WiFi.mode(WIFI_STA);
-    WiFi.begin(IOT_WIFI_SSID, IOT_WIFI_PASSWORD);
+    WiFi.begin(provision.ssid.c_str(), provision.wifiPassword.c_str());
     esp_sntp_set_time_sync_notification_cb(
         [](struct timeval *) { clockSynchronized.store(true); });
     configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
-    if (strlen(IOT_ADMIN_PASSWORD) >= 12)
+    if (strlen(provision.adminPassword.c_str()) >= 12)
       localPortal();
-    if (!IRRIGATION_REMOTE_NODE && strlen(IOT_PORTAL_URL) &&
-        strlen(IOT_DEVICE_TOKEN))
+    if (!IRRIGATION_REMOTE_NODE && strlen(provision.portalUrl.c_str()) &&
+        strlen(provision.deviceToken.c_str()))
       xTaskCreatePinnedToCore(networkTask, "portal-network", 12288, nullptr, 1,
                               nullptr, 0);
   }
-  Serial.printf("firmware=0.4.0 guid=%s physical=%u\n", guid.c_str(),
+  Serial.printf("firmware=0.5.0 guid=%s physical=%u\n", guid.c_str(),
                 IOT_PHYSICAL_OUTPUTS);
+  Serial.println(
+      "USB provisioning: PROVISION? or PROVISION {expected_revision,settings}; "
+      "window 180 seconds; no secret echo");
   previousEpoch = time(nullptr);
 }
 void loop() {
@@ -1711,14 +1988,41 @@ void loop() {
     delay(10);
     return;
   }
+  serialProvision();
+  if (restartPending) {
+    if (uint32_t(millis() - restartAt) >= 1500) {
+      Serial.flush();
+      ESP.restart();
+    }
+    delay(1);
+    return;
+  }
+  if (provisionFault) {
+    delay(1);
+    return;
+  }
+  static bool wifiWasConnected = false;
+  const bool wifiConnected = WiFi.status() == WL_CONNECTED;
+  if (wifiConnected != wifiWasConnected) {
+    wifiWasConnected = wifiConnected;
+    if (wifiConnected)
+      Serial.println(String("WiFi connected; portal http://") +
+                     WiFi.localIP().toString() + "/");
+    else
+      Serial.println("WiFi disconnected; waiting for automatic reconnect");
+  }
   uint32_t now = millis();
   if (IRRIGATION_REMOTE_NODE) {
     web.handleClient();
+    if (restartPending)
+      return;
     nodeLoop(millis());
     delay(1);
     return;
   }
   web.handleClient();
+  if (restartPending)
+    return;
   now = millis();
   Input *input = nullptr;
   if (xQueueReceive(incoming, &input, 0) == pdTRUE) {

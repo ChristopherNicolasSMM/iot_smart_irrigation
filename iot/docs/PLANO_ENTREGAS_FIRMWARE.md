@@ -8,7 +8,7 @@
 | 2 | FW-03a | Retenção segura de ocorrências | Implementado em software na 0.3.1: corte temporal/journal recente, migração conservadora e testes de falha/16 mil ocorrências; target/bancada pendentes |
 | 3 | FW-03b | Conflitos e recuperação detalhados | Implementado no escopo 0.3.2: contexto por agenda, conflitos, recuperação e telemetria deduplicada; limites de fila/histórico offline explícitos |
 | 4 | FW-08 | Portal local completo | Implementado no escopo 0.4.0: editor visual, sensores/calibração, eventos paginados e fila; testes nativos/modelo/navegador; target/bancada pendentes |
-| 5 | FW-06 | Provisionamento e atualização | Configuração sem recompilar, preservação de GUID/dados e plano explícito para credenciais, recuperação e migrações |
+| 5 | FW-06 | Provisionamento e atualização | Parcial 0.5.0: rede/contas/integração/bindings via NVS e GUI/USB, recuperação física e GUID preservado; cifragem/produção, migração física e bancada pendentes |
 
 FW-03 permanece parcial: a 0.2.1 já trouxe resumo de observação e bloqueio de retomada tardia; retenção implementada em software na 0.3.1; detalhes por agenda implementados no escopo 0.3.2; memória/target/bancada e histórico remoto offline continuam pendentes. Não confundir funcionalidades do simulador Node com equivalência integral no firmware.
 

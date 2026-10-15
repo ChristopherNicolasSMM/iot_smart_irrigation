@@ -21,4 +21,6 @@ jobs:
       - run: node --test tests/local-portal-model.test.js
       - run: node --check iot/firmware/portal/app.js
       - run: python iot/firmware/scripts/test-native.py
+      - run: pio pkg install -d iot/firmware -e esp32_matrix --library bblanchon/ArduinoJson@6.21.5 --no-save
+      - run: python iot/firmware/scripts/test-provision-codec.py
       - run: python iot/firmware/scripts/check-build.py

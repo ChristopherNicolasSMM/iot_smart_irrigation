@@ -2,7 +2,7 @@
 
 A página `LocalPortalPage.h` contém HTML e JavaScript, sem CDN ou arquivos externos. É incluída por `src/main.cpp` na compilação, armazenada na flash com `PROGMEM` e servida por `WebServer::send_P`. Não exige LittleFS/SPIFFS, `uploadfs`, cartão ou servidor Node.js no ESP32.
 
-O portal central continua na raiz do repositório e roda no computador/servidor. Na versão 0.4.0 este portal local inclui:
+O portal central continua na raiz do repositório e roda no computador/servidor. A partir da versão 0.4.0 este portal local inclui:
 
 - Operação para administrador/operador: diagnóstico, teste de 1–30 segundos e parada.
 - Administrador: editor visual de componentes, conjuntos, sensores opcionais, agendas por data ou horários independentes por dia; importação/exportação JSON e edição avançada.
@@ -11,7 +11,9 @@ O portal central continua na raiz do repositório e roda no computador/servidor.
 
 Com portal central configurado, a configuração local fica somente para consulta/exportação. Aplicar exige revisão atual, controlador parado e validação do firmware; falha/conflito preserva o rascunho. A atualização de estado não substitui dados em edição. Senhas são administradas pelo navegador via HTTP Basic; não há logout confiável implementado nessa autenticação. O portal não guarda credenciais em localStorage.
 
-Edite index.html, style.css e app.js. O pre-script PlatformIO gera LocalPortalPage.h automaticamente; para conferir antes do commit: `python iot/firmware/scripts/embed-portal.py --check`. O hash da configuração é calculado na placa, sem exigir contexto HTTPS do navegador. IDs novos usam valores aleatórios para evitar reutilização automática de nomes removidos; IDs existentes são preservados. Presença física, GPIO, bindings e segredos continuam no provisionamento.
+Edite index.html, style.css e app.js. O pre-script PlatformIO gera LocalPortalPage.h automaticamente; para conferir antes do commit: `python iot/firmware/scripts/embed-portal.py --check`. O hash da configuração é calculado na placa, sem exigir contexto HTTPS do navegador. IDs novos usam valores aleatórios para evitar reutilização automática de nomes removidos; IDs existentes são preservados. Presença física/GPIO continuam compilados; bindings e segredos podem ser provisionados em NVS na 0.5.0.
+
+Na 0.5.0, a aba **Wi-Fi e acesso** permite manutenção administrativa sem recompilar: SSID/senhas, integração HTTPS e bindings, com reinício após salvar. Cadastro inicial e recuperação por USB: [PRIMEIRO_ACESSO_ESP32.md](../../docs/PRIMEIRO_ACESSO_ESP32.md). Os passos de provision.h abaixo são opcionais para o primeiro teste e continuam disponíveis como base compilada. Pinos e habilitação física continuam compilados.
 
 ## Compilar e gravar (a partir da raiz)
 

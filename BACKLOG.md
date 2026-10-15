@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 15/10/2026 · portal v0.13.0 / firmware experimental v0.4.0. Fonte canônica das próximas entregas.
+Atualizado: 15/10/2026 · portal v0.13.0 / firmware experimental v0.5.0. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -129,7 +129,7 @@ Código para acionamento condicionado a driver/provisionamento, estático/dinâm
 | FW-03 | Completar recuperação de agendas perdidas, conflitos por agenda e retenção segura de ocorrências | Implementado no escopo 0.3.2: retenção/diagnóstico por agenda; target/bancada e histórico offline completo pendentes |
 | FW-04 | Validar HTTPS real, perfis locais, outbox/ACK e recursos TLS/NVS no ESP32 | Pendente |
 | FW-05 | Validar nó RS485, driver, perdas, alimentação e topologia 100 m | Pendente, depende HW-01 |
-| FW-06 | Provisionamento/segredos em produção e migração física de partições | Pendente |
+| FW-06 | Provisionamento/segredos em produção e migração física de partições | Parcial 0.5.0: NVS/GUI/USB e recuperação; cifragem/produção, migração física e bancada pendentes |
 | FW-08 | Portal local completo embutido | Implementado no escopo 0.4.0; navegador/API simulada aprovados, target/bancada pendentes |
 
 Limites: UTC/BRT atual, datas até 2037, 64 horários expandidos, 128 ocorrências/conjunto, outbox 16, auditoria 64, uma UART RS485. Nó final econômico ainda não escolhido; perfil remoto usa ESP32 como referência. Firmware 0.2 é versão independente do portal 0.13; contrato remoto v1 preservado. Documentação: iot/firmware/README.md e iot/docs/VALIDACAO_FIRMWARE_V02.md.
@@ -167,3 +167,11 @@ FW-08 implementado no escopo desta etapa: interface embutida na flash, editor vi
 Nove executáveis C++/UBSan, cinco fixtures de bytes/hash, 280 testes Node (nove novos do modelo do editor), sintaxe e 26 fixtures de contrato aprovados. Chromium 149: treze cenários da página embutida sobre API HTTP sintética, desktop/celular sem transbordamento horizontal, zero erros JS; inspeção visual realizada. Não equivale a executar rotas Arduino nem autenticar/acionar ESP32 real. Build target desta versão não confirmado; PlatformIO ausente neste runtime. Memória/latência/TLS/NVS reais permanecem pendentes. Fontes e evidências em iot/docs/VALIDACAO_FIRMWARE_V04.md.
 
 Próximo desenvolvimento: FW-06 (provisionamento sem recompilar, gestão/recuperação de segredos e migrações); depois ampliar fusos/DST conforme escopo. FW-04/FW-05/HW-01/HW-02 exigem target/bancada/campo. O limite antigo de 2037 foi removido na 0.3.0; continua UTC/BRT fixo e ano máximo 9999, sem suporte global a DST.
+
+## Firmware experimental 0.5.0 — provisionamento sem recompilar, 15/10/2026
+
+FW-06 avançou: primeiro cadastro/recuperação por USB (janela de três minutos, sem eco de segredos), manutenção admin+CSRF pelo portal, revisão própria/patch, perfil NVS versionado com hash e reinício após persistir. Wi-Fi/senhas/HTTPS/token/CA/bindings passam a ser configuráveis sem recompilar; GUID/partições/configuração/histórico preservados. Registro inválido bloqueia rede/automação. Troca de destino exige outbox vazia. Compatibilidade com base provision.h preservada; perfil NVS válido prevalece. GPIO/presença física/polaridade/saídas continuam compilados.
+
+Dez executáveis C++/UBSan, cinco fixtures de bytes/hash, adaptador ArduinoJson real no host, quatro testes Python do protocolo USB, 283 testes Node, sintaxe e 26 fixtures de contrato aprovados. Navegador Chromium 149: 17 cenários HTTP simulados e inspeção desktop/celular, sem erros JS/transbordamento. Build ESP32 tentado com PlatformIO 6.1.19 e repetido com CA do sistema: bloqueado antes de compilar por SSLCertVerificationError no download do core 3.3.8; nenhum build alvo confirmado. Sem Wi-Fi/USB/HTTP Basic/NVS reais ou validação física. Evidências e limites: iot/docs/VALIDACAO_FIRMWARE_V05.md.
+
+Roteiro para o próximo passo do usuário: iot/docs/PRIMEIRO_ACESSO_ESP32.md (build/upload, assistente USB, Wi-Fi 2,4 GHz, IP e portal admin/operador). FW-06 permanece parcial: cifragem de segredos/secure boot, rotação/revogação central de produção, backup/rollback e migração física pendentes. Próximo marco é bancada de conexão/acesso do usuário; não ampliar recursos físicos antes dos resultados.

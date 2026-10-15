@@ -1,4 +1,4 @@
-# Firmware experimental 0.4.0
+# Firmware experimental 0.5.0
 
 ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicitamente autorizado pelo usuário com hardware ainda em avaliação. Compilação não comprova funcionamento físico.
 
@@ -29,6 +29,8 @@ Partições: NVS 256 KiB e aplicativo único, sem OTA. Alteração em relação 
 
 ## Provisionar
 
+**Primeiro acesso 0.5.0:** é possível compilar os padrões, gravar e cadastrar Wi-Fi/senhas por USB, sem criar provision.h. Depois, usar a aba Wi-Fi e acesso. Siga [PRIMEIRO_ACESSO_ESP32.md](../docs/PRIMEIRO_ACESSO_ESP32.md). Os passos abaixo continuam válidos para provisionamento compilado; um perfil prov_v1 persistido prevalece sobre credenciais e bindings compilados.
+
 1. Copie include/provision.example.h para include/provision.h (gitignored).
 2. Defina SSID/senha, senhas distintas de pelo menos 12 caracteres para admin e operador. Não envie segredos no chat ou commit.
 3. Configure URL HTTPS do portal, token individual e CA PEM. O piloto Node HTTP precisa de proxy TLS na rede; `localhost` do computador não é o endereço do ESP32. HTTP sem TLS não é aceito por este firmware.
@@ -58,6 +60,8 @@ Após Wi-Fi/SNTP, Serial informa GUID; acessar http://IP_DA_PLACA/. Portal local
 |---|---|---|
 | GET /, /api/state | admin/operador | Monitorar e obter token CSRF da sessão de boot |
 | POST /api/command | admin/operador + X-CSRF-Token | zone_id, action=start/stop, source=test/manual e duration_s; resposta informa command_status |
+| GET /api/provisioning | admin | Metadados/revisão/IP/bindings; segredos nunca retornados |
+| POST /api/provisioning | admin + CSRF, ocioso | expected_revision + settings parcial; persistir e reiniciar; sem mudar GUID/pinos |
 | GET /api/configuration | admin | Configuração sem segredos |
 | POST /api/configuration | admin + CSRF | Somente bancada independente; envelope completo |
 | POST /api/configuration/draft | admin + CSRF, ocioso | expected_revision + configuration; hash na placa, revisão seguinte; central/nó recusam edição |
@@ -129,3 +133,9 @@ Fontes em portal/index.html, style.css e app.js. O pre-script PlatformIO gera Lo
 Migração da API local de eventos: a resposta passa a ser paginada em ordem decrescente. Consumidores devem seguir next_before como string opaca, sem converter para Number. O anel pode girar entre páginas; não representa snapshot imutável. Os endpoints remotos /iot/v1 e os envelopes existentes permanecem compatíveis. GUID, partições e esquema de configuração são preservados.
 
 Wi-Fi, senhas, CA, token, GPIO, bindings e presença física de sensores continuam provisionados fora deste editor; habilitar componente lógico não habilita canal físico nem saídas. Matriz consulta sensores sem calibrá-los; nó calibra apenas slot 0 e recebe comandos da matriz. Testes e limites: [VALIDACAO_FIRMWARE_V04.md](../docs/VALIDACAO_FIRMWARE_V04.md).
+
+## Provisionamento sem recompilar — 0.5.0
+
+Rede, senhas locais, origem HTTPS/token/CA e bindings podem ser mantidos pela GUI/USB. Primeiro cadastro/recuperação usa USB nos primeiros três minutos após reset, com controlador ocioso; não há AP aberto ou senha padrão. Alteração válida só entra após reiniciar; erro de rede/senha é recuperado por USB sem apagar dados. Campos secretos omitidos mantêm valores; remoção explícita por string vazia (admin não pode ser removido). Destino central só muda com outbox vazia. Perfil inválido bloqueia rede/automação até recuperação. GPIO, sensores fisicamente presentes, polaridade e habilitação elétrica continuam compilados.
+
+Assistente: `python iot/firmware/scripts/provision-device.py --port COM5`; status/IP: mesmo comando com --status. Requer pyserial e monitor fechado. Portas podem reiniciar a placa ao abrir; mensagem de IP também disponível no Serial/roteador. Perfil/NVS/GUID persistem em upload comum. Ver [VALIDACAO_FIRMWARE_V05.md](../docs/VALIDACAO_FIRMWARE_V05.md) para API, precedência, testes e limites. FW-06 permanece parcial: cifragem/secure boot, gestão de produção e migração física não estão concluídos.
