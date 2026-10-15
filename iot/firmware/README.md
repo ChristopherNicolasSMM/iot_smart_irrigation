@@ -1,4 +1,4 @@
-# Firmware experimental 0.3.2
+# Firmware experimental 0.4.0
 
 ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicitamente autorizado pelo usuário com hardware ainda em avaliação. Compilação não comprova funcionamento físico.
 
@@ -7,7 +7,7 @@ ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicit
 - Controlador estático, dinâmico e híbrido, sensores opcionais, duração monotônica, histerese, pausa e simultaneidade 1–4.
 - Agendas por data ou dia/horário, duração ou fim, inclusive virada de dia; ocorrências persistidas antes do acionamento.
 - GPIO para módulo de relé em bancada; matriz com comandos RS485 confirmados por nó remoto e lease local.
-- Portal local autenticado, administrador/operador, CSRF, teste/parada, diagnóstico e auditoria.
+- Portal local embutido: administrador/operador, CSRF, teste/parada, editor visual de componentes/conjuntos/agendas, calibração, eventos paginados e fila.
 - Cliente HTTPS/Bearer, CA obrigatória, configuração/revisão/hash, ACK de comando, runtime, amostra a cada 900 s e eventos.
 - GUID NVS, fila persistente limitada, registro de comandos e auditoria local. Nenhum segredo de exemplo é credencial de produção.
 
@@ -44,7 +44,7 @@ Nenhum perfil de fábrica ativa relés ou Wi-Fi. Perfil padrão é matriz. Não 
 
 Com portal central configurado, configuração vem de /iot/v1/configuration. Aplica somente ocioso, confere GUID, revisão, bytes SHA-256 e limites locais; configuração inválida recebe rejeição. Enquanto há execução, a revisão permanece pendente. Persistência deve concluir antes de ACK applied. Configuração do portal não contém os segredos de provisionamento.
 
-Para bancada independente, sem IOT_PORTAL_URL, use configuração empacotada e POST /api/configuration como administrador. Geração do envelope (Node 24, na raiz do projeto):
+Para bancada independente, sem IOT_PORTAL_URL, use a aba Configuração do portal local como administrador. O dispositivo calcula o hash e cria a próxima revisão, recusando rascunhos baseados em revisão antiga. A alternativa por envelope continua disponível via POST /api/configuration. Geração do envelope (Node 24, na raiz do projeto):
 
 ```sh
 node iot/firmware/scripts/pack-configuration.mjs examples/device-config.json GUID_DO_DISPOSITIVO 1 > configuration-envelope.json
@@ -60,9 +60,10 @@ Após Wi-Fi/SNTP, Serial informa GUID; acessar http://IP_DA_PLACA/. Portal local
 | POST /api/command | admin/operador + X-CSRF-Token | zone_id, action=start/stop, source=test/manual e duration_s; resposta informa command_status |
 | GET /api/configuration | admin | Configuração sem segredos |
 | POST /api/configuration | admin + CSRF | Somente bancada independente; envelope completo |
-| GET /api/sensors | admin | ADC bruto e ROMs para bancada/nó; matriz não lê sensores locais |
+| POST /api/configuration/draft | admin + CSRF, ocioso | expected_revision + configuration; hash na placa, revisão seguinte; central/nó recusam edição |
+| GET /api/sensors | admin | ADC bruto, ROMs e calibração salva por slot; matriz não lê sensores locais |
 | POST /api/calibration | admin + CSRF, ocioso | slot 0..3 + dry/wet, ou slot + rom hexadecimal de 16 caracteres |
-| GET /api/events | admin/operador | Até 64 registros locais, horário desconhecido explicitamente null |
+| GET /api/events?before=CURSOR | admin/operador | Até 10 registros por página, mais recentes primeiro; anel de 64, next_before string/null; horário desconhecido null |
 | GET /api/outbox | admin | Contagem/tentativas sem payload ou segredos |
 | POST /api/outbox/retry | admin + CSRF, ocioso | Repetir cabeça mantendo corpo/IDs; não corrige token inválido |
 
@@ -118,3 +119,13 @@ Consulte [VALIDACAO_FIRMWARE_V031.md](../docs/VALIDACAO_FIRMWARE_V031.md) para f
 Execuções automáticas e observações de recuperação agora identificam agenda, horário e ocorrência. Conflitos registram a agenda omitida e a concorrente quando existente. O híbrido segue sua janela original; agendas estáticas consecutivas podem terminar/iniciar no mesmo tick, sem conflito artificial.
 
 Observações são registradas localmente e enviadas por telemetria com event_id estável, deduplicado pelo portal. Fila de 16 mensagens e auditoria de 64 registros permanecem limitadas: saturação pode deixar o evento somente local e incrementar lost_events, sem retransmissão posterior do anel. Consulte [VALIDACAO_FIRMWARE_V032.md](../docs/VALIDACAO_FIRMWARE_V032.md). O portal local completo continua sendo a próxima entrega.
+
+## Portal local completo — 0.4.0
+
+Fontes em portal/index.html, style.css e app.js. O pre-script PlatformIO gera LocalPortalPage.h, incorporado na flash: sem CDN, uploadfs ou servidor Node na placa. A verificação nativa rejeita snapshot desatualizado. Veja [portal/README.md](portal/README.md).
+
+/api/state autenticado acrescenta local_role, local_role_type, configuration_authority, capabilities e configuration_body_limit. São informações da interface; autorização, CSRF e ociosidade continuam verificados no firmware. A configuração local usa expected_revision para impedir sobrescrita silenciosa e preserva o rascunho quando há conflito. SHA-256 é calculado no ESP32; não depende de WebCrypto/HTTPS do navegador.
+
+Migração da API local de eventos: a resposta passa a ser paginada em ordem decrescente. Consumidores devem seguir next_before como string opaca, sem converter para Number. O anel pode girar entre páginas; não representa snapshot imutável. Os endpoints remotos /iot/v1 e os envelopes existentes permanecem compatíveis. GUID, partições e esquema de configuração são preservados.
+
+Wi-Fi, senhas, CA, token, GPIO, bindings e presença física de sensores continuam provisionados fora deste editor; habilitar componente lógico não habilita canal físico nem saídas. Matriz consulta sensores sem calibrá-los; nó calibra apenas slot 0 e recebe comandos da matriz. Testes e limites: [VALIDACAO_FIRMWARE_V04.md](../docs/VALIDACAO_FIRMWARE_V04.md).

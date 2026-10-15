@@ -9,6 +9,8 @@
 #include "Recovery.h"
 #include "OccurrenceLedger.h"
 #include "ScheduleDiagnostics.h"
+#include "LocalPortalPolicy.h"
+#include <errno.h>
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -819,10 +821,21 @@ void handleCommand(JsonObjectConst c, bool local) {
       slot, millis(), c["duration_s"].as<unsigned>() * 1000, source == "test");
   (void)ok;
 }
-String statusJson(bool csrfToken) {
+String statusJson(bool csrfToken,int role=0) {
   DynamicJsonDocument d(4096);
-  d["firmware"] = "0.3.2-experimental";
+  d["firmware"] = "0.4.0-experimental";
   d["guid"] = guid;
+  if (role) {
+    d["local_role"]=role==2 ? "admin" : "operator";
+    d["configuration_authority"]=strlen(IOT_PORTAL_URL) || IRRIGATION_REMOTE_NODE ? "central" : "local";
+    JsonObject capabilities=d.createNestedObject("capabilities");
+    capabilities["configure"]=role==2 && !strlen(IOT_PORTAL_URL) && !IRRIGATION_REMOTE_NODE;
+    capabilities["calibrate"]=role==2 && !IRRIGATION_ROLE_MATRIX;
+    capabilities["outbox"]=role==2;
+    capabilities["command"]=!IRRIGATION_REMOTE_NODE;
+    d["local_role_type"]=IRRIGATION_REMOTE_NODE ? "remote_node" : (IRRIGATION_ROLE_MATRIX ? "matrix" : "sensor_bench");
+    d["configuration_body_limit"]=bodyLimit-512;
+  }
   d["revision"] = revision;
   d["clock_valid"] = clockReady();
   d["time_t_bits"] = sizeof(time_t) * 8;
@@ -900,10 +913,10 @@ void localPortal() {
     web.send_P(200, "text/html; charset=utf-8", localPortalPage);
   });
   web.on("/api/state", HTTP_GET, [] {
-    if (!authenticate())
-      return;
+    const int role=authenticate();
+    if (!role) return;
     web.sendHeader("Cache-Control", "no-store");
-    web.send(200, "application/json", statusJson(true));
+    web.send(200, "application/json", statusJson(true,role));
   });
   web.on("/api/configuration", HTTP_GET, [] {
     if (!administrator())
@@ -970,28 +983,43 @@ void localPortal() {
       web.send(503, "application/json", "{}");
       return;
     }
-    DynamicJsonDocument d(32768);
-    JsonArray events = d.createNestedArray("events");
-    uint64_t last = store.getULong64("aseq", 0),
-             first = last > 63 ? last - 63 : 1;
-    d["total_since_provisioning"] = last;
-    d["retained_limit"] = 64;
-    for (uint64_t seq = first; seq <= last; ++seq) {
-      String key = "a" + String(uint32_t(seq % 64));
-      DynamicJsonDocument row(768);
-      if (!deserializeJson(row, store.getString(key.c_str(), "")) &&
-          row["sequence"].as<uint64_t>() == seq)
-        events.add(row.as<JsonObjectConst>());
+    uint64_t before=0;
+    if (web.hasArg("before")) {
+      String cursor=web.arg("before");
+      bool valid=cursor.length()>0 && cursor.length()<=20;
+      for (size_t i=0;i<cursor.length();++i) valid=valid && isdigit(cursor[i]);
+      errno=0;char *end=nullptr;
+      before=strtoull(cursor.c_str(),&end,10);
+      if (!valid || errno==ERANGE || !end || *end || !before) {
+        unlockStore();web.send(400,"application/json","{\"error\":\"invalid_cursor\"}");return;
+      }
     }
+    DynamicJsonDocument d(24576);
+    JsonArray events=d.createNestedArray("events");
+    const uint64_t last=store.getULong64("aseq",0),first=last>63 ? last-63 : 1;
+    uint64_t seq=before && before<=last ? before-1 : last;
+    d["total_since_provisioning"]=last;d["retained_limit"]=64;d["page_limit"]=10;
+    unsigned visited=0;
+    while (seq>=first && seq>0 && visited<10) {
+      String key="a"+String(uint32_t(seq%64));DynamicJsonDocument row(1536);
+      if (!deserializeJson(row,store.getString(key.c_str(),"")) &&
+          row["sequence"].as<uint64_t>()==seq) events.add(row.as<JsonObjectConst>());
+      --seq;++visited;
+    }
+    if (seq>=first && seq>0) {
+      char cursor[21];snprintf(cursor,sizeof(cursor),"%llu",static_cast<unsigned long long>(seq+1));
+      d["next_before"]=cursor;
+    }
+    else d["next_before"]=nullptr;
     unlockStore();
-    String raw;
-    serializeJson(d, raw);
+    if (d.overflowed()) { web.send(503,"application/json","{\"error\":\"event_page_too_large\"}");return; }
+    String raw;serializeJson(d,raw);
     web.send(200, "application/json", raw);
   });
   web.on("/api/sensors", HTTP_GET, [] {
     if (!administrator())
       return;
-    DynamicJsonDocument d(2048);
+    DynamicJsonDocument d(4096);
     JsonArray raw = d.createNestedArray("raw"),
               roms = d.createNestedArray("roms");
     (void)raw;
@@ -1009,13 +1037,26 @@ void localPortal() {
       }
     }
 #endif
-    String s;
-    serializeJson(d, s);
-    web.send(200, "application/json", s);
+    d["local_available"]=!IRRIGATION_ROLE_MATRIX;
+    JsonArray calibration=d.createNestedArray("calibration");
+    if (!lockStore()) { web.send(503,"application/json","{}");return; }
+    for (unsigned i=0;i<4;++i) {
+      JsonObject row=calibration.createNestedObject();row["slot"]=i;
+      row["moisture_enabled"]=!IRRIGATION_ROLE_MATRIX && (hardware::moistureMask & (1u<<i));
+      row["temperature_enabled"]=!IRRIGATION_ROLE_MATRIX && hardware::temperatureEnabled;
+      const String value=store.getString(("cal"+String(i)).c_str(),"");
+      int dry=0,wet=0;const bool saved=sscanf(value.c_str(),"%d,%d",&dry,&wet)==2;
+      if (saved) { row["dry"]=dry;row["wet"]=wet; }
+      row["rom"]=temperatureRom[i];
+    }
+    unlockStore();
+    String s;serializeJson(d,s);web.send(200,"application/json",s);
   });
   web.on("/api/calibration", HTTP_POST, [] {
-    if (!administrator())
-      return;
+    if (!administrator()) return;
+    if (IRRIGATION_ROLE_MATRIX) {
+      web.send(405,"application/json","{\"error\":\"calibrate_at_sensor_node\"}");return;
+    }
     if (web.header("X-CSRF-Token") != csrf || controller.activeCount() ||
         nodeLease.active()) {
       web.send(409, "application/json", "{}");
@@ -1029,6 +1070,7 @@ void localPortal() {
       return;
     }
     unsigned i = d["slot"];
+    if (IRRIGATION_REMOTE_NODE && i!=0) { web.send(400,"application/json","{}");return; }
     String rom = d["rom"].as<String>();
     bool hasRom = rom.length();
     if (hasRom) {
@@ -1089,6 +1131,42 @@ void localPortal() {
     String raw;
     serializeJson(d, raw);
     web.send(ok ? 200 : 400, "application/json", raw);
+  });
+  web.on("/api/configuration/draft",HTTP_POST,[] {
+    if (!administrator()) return;
+    if (web.header("X-CSRF-Token")!=csrf) {
+      web.send(403,"application/json","{\"error\":\"csrf_invalid\"}");return;
+    }
+    const String body=web.arg("plain");
+    if (body.length()>bodyLimit-256) { web.send(413,"application/json","{\"error\":\"configuration_too_large\"}");return; }
+    const char *reason=nullptr;
+    { // Release the parsed draft before applyEnvelope allocates its document.
+    DynamicJsonDocument draft(24576);
+    if (deserializeJson(draft,body) || !draft["expected_revision"].is<uint32_t>() ||
+        !draft["configuration"].is<JsonObject>()) {
+      web.send(400,"application/json","{\"error\":\"draft_invalid\"}");return;
+    }
+    reason=draftRejection(2,true,strlen(IOT_PORTAL_URL),IRRIGATION_REMOTE_NODE,
+                                     controller.activeCount(),draft["expected_revision"].as<uint32_t>(),revision);
+    }
+    if (reason) {
+      web.send(409,"application/json",String("{\"error\":\"")+reason+"\"}");return;
+    }
+    size_t begin=0,end=0;
+    if (!objectMember(std::string(body.c_str(),body.length()),"configuration",begin,end)) {
+      web.send(400,"application/json","{\"error\":\"draft_invalid\"}");return;
+    }
+    const String configuration=body.substring(begin,end), hash=digest(configuration);
+    if (configuration.length()>bodyLimit-512 || hash.length()!=64) {
+      web.send(400,"application/json","{\"error\":\"configuration_too_large_or_hash_failed\"}");return;
+    }
+    const String envelope=String("{\"schema_version\":1,\"device_guid\":\"")+guid+
+        "\",\"revision\":"+String(revision+1)+",\"configuration_hash\":\""+hash+
+        "\",\"configuration\":"+configuration+"}";
+    String error;const bool applied=applyEnvelope(envelope,error);
+    DynamicJsonDocument result(512);result["applied"]=applied;result["revision"]=revision;
+    if (!applied) result["error"]=error;
+    String raw;serializeJson(result,raw);web.send(applied ? 200 : 400,"application/json",raw);
   });
   web.on("/api/command", HTTP_POST, [] {
     if (!authenticate())
@@ -1624,7 +1702,7 @@ void setup() {
       xTaskCreatePinnedToCore(networkTask, "portal-network", 12288, nullptr, 1,
                               nullptr, 0);
   }
-  Serial.printf("firmware=0.3.2 guid=%s physical=%u\n", guid.c_str(),
+  Serial.printf("firmware=0.4.0 guid=%s physical=%u\n", guid.c_str(),
                 IOT_PHYSICAL_OUTPUTS);
   previousEpoch = time(nullptr);
 }

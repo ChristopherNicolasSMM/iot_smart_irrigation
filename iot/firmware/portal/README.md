@@ -2,7 +2,16 @@
 
 A página `LocalPortalPage.h` contém HTML e JavaScript, sem CDN ou arquivos externos. É incluída por `src/main.cpp` na compilação, armazenada na flash com `PROGMEM` e servida por `WebServer::send_P`. Não exige LittleFS/SPIFFS, `uploadfs`, cartão ou servidor Node.js no ESP32.
 
-O portal central continua na raiz do repositório e roda no computador/servidor. O portal desta pasta oferece autenticação admin/operador, estado dos conjuntos e teste/parada; as APIs locais de configuração, calibração, eventos e fila permanecem documentadas no README do firmware. A página atual não é a interface completa do portal central nem um editor visual de agendas.
+O portal central continua na raiz do repositório e roda no computador/servidor. Na versão 0.4.0 este portal local inclui:
+
+- Operação para administrador/operador: diagnóstico, teste de 1–30 segundos e parada.
+- Administrador: editor visual de componentes, conjuntos, sensores opcionais, agendas por data ou horários independentes por dia; importação/exportação JSON e edição avançada.
+- Calibração HD-38 e vínculo ROM DS18B20 no canal físico; matriz não calibra, nó usa apenas slot 0.
+- Eventos locais paginados e fila com reprocessamento da primeira mensagem.
+
+Com portal central configurado, a configuração local fica somente para consulta/exportação. Aplicar exige revisão atual, controlador parado e validação do firmware; falha/conflito preserva o rascunho. A atualização de estado não substitui dados em edição. Senhas são administradas pelo navegador via HTTP Basic; não há logout confiável implementado nessa autenticação. O portal não guarda credenciais em localStorage.
+
+Edite index.html, style.css e app.js. O pre-script PlatformIO gera LocalPortalPage.h automaticamente; para conferir antes do commit: `python iot/firmware/scripts/embed-portal.py --check`. O hash da configuração é calculado na placa, sem exigir contexto HTTPS do navegador. IDs novos usam valores aleatórios para evitar reutilização automática de nomes removidos; IDs existentes são preservados. Presença física, GPIO, bindings e segredos continuam no provisionamento.
 
 ## Compilar e gravar (a partir da raiz)
 

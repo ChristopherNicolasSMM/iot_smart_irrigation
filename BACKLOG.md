@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 15/10/2026 · portal v0.13.0 / firmware experimental v0.3.2. Fonte canônica das próximas entregas.
+Atualizado: 15/10/2026 · portal v0.13.0 / firmware experimental v0.4.0. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -130,6 +130,7 @@ Código para acionamento condicionado a driver/provisionamento, estático/dinâm
 | FW-04 | Validar HTTPS real, perfis locais, outbox/ACK e recursos TLS/NVS no ESP32 | Pendente |
 | FW-05 | Validar nó RS485, driver, perdas, alimentação e topologia 100 m | Pendente, depende HW-01 |
 | FW-06 | Provisionamento/segredos em produção e migração física de partições | Pendente |
+| FW-08 | Portal local completo embutido | Implementado no escopo 0.4.0; navegador/API simulada aprovados, target/bancada pendentes |
 
 Limites: UTC/BRT atual, datas até 2037, 64 horários expandidos, 128 ocorrências/conjunto, outbox 16, auditoria 64, uma UART RS485. Nó final econômico ainda não escolhido; perfil remoto usa ESP32 como referência. Firmware 0.2 é versão independente do portal 0.13; contrato remoto v1 preservado. Documentação: iot/firmware/README.md e iot/docs/VALIDACAO_FIRMWARE_V02.md.
 
@@ -158,3 +159,11 @@ Sete executáveis C++/UBSan e cinco fixtures de bytes/hash; 16000 acionamentos s
 FW-03b no escopo delimitado: IDs originais de agenda/horário, ocorrência/janela nos eventos automáticos, conflitos com concorrente, enumeração de janelas sem observação e telemetria com event_id estável para deduplicação central. Híbrido segue a janela que iniciou o ciclo; fronteira de duração permite iniciar agenda estática consecutiva no mesmo tick. Registro legado de ocorrência mantém algoritmo/valores; GUID/partições/contrato preservados.
 
 Oito executáveis C++/UBSan, cinco fixtures de bytes/hash, sintaxe, 26 fixtures de contrato e 271 testes do portal aprovados. Metadados/deduplicação HTTP testados. Outbox16/auditoria64 continuam limitadas: saturação pode perder envio remoto, incrementa lost_events e não reenvia automaticamente o anel; não há promessa de histórico remoto infinito. Memória/latência e builds ESP32 não confirmados: PlatformIO ausente no runtime desta sessão. Sem gravação ou validação física. Ver iot/docs/VALIDACAO_FIRMWARE_V032.md. Próxima entrega FW-08: interface local completa.
+
+## Firmware experimental 0.4.0 — portal local completo, 15/10/2026
+
+FW-08 implementado no escopo desta etapa: interface embutida na flash, editor visual de componentes/conjuntos/agendas por dia/data, importação/exportação JSON, calibração, ROM, eventos paginados e fila. API de rascunho gera hash na placa e exige revisão atual; preserva autoridade central/nó, admin/operador, CSRF, ociosidade e limites. Migração de eventos locais: páginas de dez, ordem decrescente, cursor string; anel de 64 preservado. GUID, partições, envelopes e contrato remoto v1 preservados.
+
+Nove executáveis C++/UBSan, cinco fixtures de bytes/hash, 280 testes Node (nove novos do modelo do editor), sintaxe e 26 fixtures de contrato aprovados. Chromium 149: treze cenários da página embutida sobre API HTTP sintética, desktop/celular sem transbordamento horizontal, zero erros JS; inspeção visual realizada. Não equivale a executar rotas Arduino nem autenticar/acionar ESP32 real. Build target desta versão não confirmado; PlatformIO ausente neste runtime. Memória/latência/TLS/NVS reais permanecem pendentes. Fontes e evidências em iot/docs/VALIDACAO_FIRMWARE_V04.md.
+
+Próximo desenvolvimento: FW-06 (provisionamento sem recompilar, gestão/recuperação de segredos e migrações); depois ampliar fusos/DST conforme escopo. FW-04/FW-05/HW-01/HW-02 exigem target/bancada/campo. O limite antigo de 2037 foi removido na 0.3.0; continua UTC/BRT fixo e ano máximo 9999, sem suporte global a DST.

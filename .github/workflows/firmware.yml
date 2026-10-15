@@ -18,5 +18,7 @@ jobs:
         with:
           node-version: '24'
       - run: python -m pip install platformio==6.1.19
+      - run: node --test tests/local-portal-model.test.js
+      - run: node --check iot/firmware/portal/app.js
       - run: python iot/firmware/scripts/test-native.py
       - run: python iot/firmware/scripts/check-build.py
