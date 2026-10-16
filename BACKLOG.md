@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 15/10/2026 · portal v0.13.0 / firmware experimental v0.5.1. Fonte canônica das próximas entregas.
+Atualizado: 15/10/2026 · portal v0.13.0 / firmware experimental v0.6.0. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -132,7 +132,7 @@ Código para acionamento condicionado a driver/provisionamento, estático/dinâm
 | FW-06 | Provisionamento/segredos em produção e migração física de partições | Parcial 0.6.0: backup cifrado, restauração retomável/hold, rotação e guard de boot; SDK/chaves/produção, migração física e bancada pendentes |
 | FW-08 | Portal local completo embutido | Implementado no escopo 0.4.0; navegador/API simulada e build alvo 0.5.1 aprovados, bancada pendente |
 
-Limites: UTC/BRT atual, datas até 2037, 64 horários expandidos, 128 ocorrências/conjunto, outbox 16, auditoria 64, uma UART RS485. Nó final econômico ainda não escolhido; perfil remoto usa ESP32 como referência. Firmware 0.2 é versão independente do portal 0.13; contrato remoto v1 preservado. Documentação: iot/firmware/README.md e iot/docs/VALIDACAO_FIRMWARE_V02.md.
+Limites históricos da versão 0.2 (superados nas entregas abaixo): UTC/BRT atual, datas até 2037, 64 horários expandidos, 128 ocorrências/conjunto, outbox 16, auditoria 64, uma UART RS485. Nó final econômico ainda não escolhido; perfil remoto usa ESP32 como referência. Firmware 0.2 é versão independente do portal 0.13; contrato remoto v1 preservado. Documentação: iot/firmware/README.md e iot/docs/VALIDACAO_FIRMWARE_V02.md.
 
 ## Firmware experimental 0.2.1 — 15/10/2026
 
@@ -193,3 +193,11 @@ FW-07 ampliado: 597 nomes IANA 2026e, 344 tabelas deduplicadas, transições em 
 Evidência: 14 executáveis C++/UBSan, cinco fixtures hash/bytes, dois adaptadores ArduinoJson reais; sete testes Python USB/layout e sete de backup; recuperação com falha em cada uma das 13 operações/idempotência; 163.755 instantes comparados contra a mesma base IANA; 285 testes Node, sintaxe e 26 fixtures/consistência OpenAPI. Chromium 149: 22 cenários em API HTTP sintética, desktop/celular, zero erros JS/overflow e inspeção visual. Sete builds alvo aprovados (três padrão, três sintéticos e hardened), com offset 0x50000, imagens fora das partições de dados e aplicativo combinado verificado byte a byte. Evidências em iot/docs/VALIDACAO_FIRMWARE_V06.md e BUILD_FIRMWARE_V06.json.
 
 **FW-06 de produção permanece parcial**: perfil hardened recusa boot sem flash/NVS encryption e secure boot, mas não prepara SDK/bootloader/partição de chaves/eFuses. Integração segura de produção e recuperação, proteção de transporte local, migração física, heap/TLS/NVS reais e FW-04/FW-05/HW-01/HW-02 continuam pendentes. Nenhuma placa gravada ou validação física realizada. Próximo marco: usuário testar USB/Wi-Fi/portal com saídas desabilitadas.
+
+## Complemento 0.6.0 — auditoria de pré-produção, 15/10/2026
+
+FW-06 avançou nas ferramentas: auditor offline do sdkconfig resolvido, revisão declarada do chip, layout e tamanhos das imagens; recusa proteções ausentes, modo Development, permissões inseguras, regiões deslocadas/sobrepostas e bootloader grande demais. Saída sem valores secretos, hashes das entradas e production_ready sempre false; não verifica assinatura nem estado real da placa. Tabela candidata separada acrescenta nvs_keys cifrada em 0x49000 sem mover/reduzir NVS, app ou reserva de arquivos. Não foi ativada no PlatformIO.
+
+16 testes novos Python integrados ao CI/script nativo, 14 executáveis C++/UBSan e cinco fixtures hash/bytes, sete testes Python USB/layout aprovados. Candidata convertida/validada pelo gen_esp32part.py oficial v5.5.4 com secure v2/4MB e roundtrip dos campos. Sem alteração do C++/SDK/portal padrão, sem repetir builds alvo ou testes visuais/físicos. Firmware permanece 0.6.0; os sete builds anteriores não são atribuídos a esta conferência. Evidência/uso em iot/docs/AUDITORIA_PREPRODUCAO_ESP32.md.
+
+Pendências de desenvolvimento mantidas: SDK/bootloader reproduzível com NVS cifrada, inicialização/migração, custódia/rotação de chaves, recuperação autenticada e transporte local protegido; integração depende da revisão real do ESP32 e da estratégia de manutenção. Não houve geração de chaves, gravação ou alteração de eFuses. Primeiro ensaio do usuário continua no perfil padrão, com saídas desabilitadas.

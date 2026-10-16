@@ -1,0 +1,7 @@
+# Offline candidate only. NOT selected by platformio.ini. Requires custom SDK,
+# signed bootloader size review, key provisioning and physical migration review.
+# Name, Type, SubType, Offset, Size, Flags
+nvs, data, nvs, 0x9000, 0x40000,
+nvs_keys, data, nvs_keys, 0x49000, 0x1000, encrypted
+app0, app, factory, 0x50000, 0x2B0000,
+littlefs, data, spiffs, 0x300000, 0x100000,

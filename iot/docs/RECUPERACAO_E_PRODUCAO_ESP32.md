@@ -42,3 +42,5 @@ Após restaurar, conferir os dados no portal local e gerar novo token no portal 
 **Esse perfil não ativa criptografia nem grava eFuses.** O SDK padrão e a tabela atual não fornecem a preparação completa de NVS cifrada. A implantação segura ainda exige selecionar/revisar a revisão exata do chip, preparar SDK/bootloader/partição `nvs_keys`, política e custódia das chaves, provisionamento inicial, recuperação autorizada e ensaiar o fluxo em placa reservada. Secure boot e flash encryption têm efeitos persistentes e requisitos específicos do ESP32; não foram ativados remotamente.
 
 Referência da versão usada: [Espressif — flash encryption, IDF 5.5.4](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32/security/flash-encryption.html). NVS encryption e secure boot são mecanismos distintos. FW-06 de produção permanece parcial até essa integração e a validação física; o bloqueio compilado evita tratá-la como concluída.
+
+Auditoria offline e tabela candidata não ativada: [AUDITORIA_PREPRODUCAO_ESP32.md](AUDITORIA_PREPRODUCAO_ESP32.md). O auditor verifica a configuração/tamanhos fornecidos, não confirma prontidão de produção nem cifra a placa.

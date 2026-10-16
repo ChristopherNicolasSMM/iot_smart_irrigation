@@ -5,6 +5,7 @@ root=fw.parents[1]
 subprocess.run([sys.executable,str(fw/'scripts/embed-portal.py'),'--check'],check=True)
 subprocess.run([sys.executable,str(fw/'tests/test_provision_usb.py')],check=True)
 subprocess.run([sys.executable,str(fw/'tests/test_flash_layout.py')],check=True)
+subprocess.run([sys.executable,str(fw/'tests/test_production_audit.py')],check=True)
 with tempfile.TemporaryDirectory(prefix='irrigation-native-') as tmp:
  for name in ('deadline','control','span','auth','recovery','time64','retention','diagnostics','portal','provision','timezones','queue','security','replay'):
   exe=Path(tmp)/name

@@ -19,3 +19,5 @@ MQTT e OTA ficam fora desta sequência. Fusos globais foram incluídos na 0.6.0 
 Conferência 0.5.1: seis builds alvo aprovados, com tempo64 e endereços de gravação corrigidos/verificados. Próximo marco é a bancada de Wi-Fi/portal do usuário; não equivale a validação física. Ver VALIDACAO_FIRMWARE_V051.md.
 
 Conferência 0.6.0: 14 executáveis nativos, comparação IANA, 285 testes Node e 22 cenários de navegador em API simulada; resultados dos builds em VALIDACAO_FIRMWARE_V06.md. Pendência de desenvolvimento de produção: SDK/bootloader/NVS cifrada, chaves e recuperação segura; o perfil hardened apenas exige e detecta essas proteções.
+
+Complemento 0.6.0: auditor offline e candidata de partições verificada pelo gerador oficial, sem ativação. FW-06 permanece parcial; ver AUDITORIA_PREPRODUCAO_ESP32.md para pendências de SDK/chaves/migração/recuperação/transporte.
