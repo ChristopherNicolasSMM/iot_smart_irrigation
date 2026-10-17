@@ -1,0 +1,134 @@
+{
+  "captured_at": "2026-10-17T18:30:40.126Z",
+  "firmware": "0.6.0-experimental",
+  "source_commit": "cc84819396b35261ce43a31007b40c62ad0f4200",
+  "embedded_page_sha256": "aa3584f78ecb8317e74ea995d0a991409e6c36b7de41167b3cfd8a7785aaef35",
+  "browser": "149.0.7827.0",
+  "scope": "Exact embedded page with synthetic localhost HTTP API; no ESP32 CPU/SDK emulation, real authentication, GPIO, sensor, flash or central connection.",
+  "viewport": {
+    "desktop": "1280x900",
+    "mobile": "390x844"
+  },
+  "external_requests": [],
+  "javascript_errors": [],
+  "synthetic_post_routes": [
+    "/api/command",
+    "/api/command",
+    "/api/events/replay",
+    "/api/outbox/retry"
+  ],
+  "captures": [
+    {
+      "file": "01-operacao.png",
+      "width": 1280,
+      "height": 964,
+      "bytes": 77174,
+      "sha256": "af6a2002614aa37436d6df53eb781035faeaecd8f03ed68695e6e9111672a258"
+    },
+    {
+      "file": "02-teste-simulado.png",
+      "width": 1280,
+      "height": 1019,
+      "bytes": 81901,
+      "sha256": "fe0b981efe67ad2183cfbb798aa67f9b4348676a39293d7744339a590044da50"
+    },
+    {
+      "file": "03-dispositivo.png",
+      "width": 1120,
+      "height": 157,
+      "bytes": 13802,
+      "sha256": "4fa5eaccaa29ebc9ee1e56ad62aaf8be194494da6d3058a976025b43fce00ef5"
+    },
+    {
+      "file": "04-componentes.png",
+      "width": 1120,
+      "height": 614,
+      "bytes": 44420,
+      "sha256": "1b1391cfba61cbeb01a8002da8fcabe9271a7680e0aa774c3f4c1c40c84de428"
+    },
+    {
+      "file": "05-conjuntos.png",
+      "width": 1120,
+      "height": 458,
+      "bytes": 37050,
+      "sha256": "77abd10195b938586ebc8e5acade634dec18cf8fd8a190d88379bb3c4899cfb4"
+    },
+    {
+      "file": "06-agenda-semanal.png",
+      "width": 1120,
+      "height": 1092,
+      "bytes": 61665,
+      "sha256": "e53e16745cb3c3f58f2536b05a62841373aaffc01d50fb26ad77987f79bf956e"
+    },
+    {
+      "file": "07-agenda-data.png",
+      "width": 1120,
+      "height": 506,
+      "bytes": 32922,
+      "sha256": "55fe80a5b489178219fa276a01294383c90e5e5b841dc13195d4472c96f0e07b"
+    },
+    {
+      "file": "08-sensores.png",
+      "width": 1280,
+      "height": 1080,
+      "bytes": 93451,
+      "sha256": "fbcff4160ac5b04c4fe84495aaa9c2d84ab471a900da08643d87a19d1a8ba473"
+    },
+    {
+      "file": "09-eventos.png",
+      "width": 1280,
+      "height": 976,
+      "bytes": 95719,
+      "sha256": "32d1d8dbee1f4b09234873913a01db316986900443aa8f8bece496b309866bb2"
+    },
+    {
+      "file": "10-fila.png",
+      "width": 1280,
+      "height": 900,
+      "bytes": 98111,
+      "sha256": "72abe94a0c01dca3fdbda2e490fd9100c3e6e5f82ad4666aa7b485aaf97d7598"
+    },
+    {
+      "file": "11-wifi-acesso.png",
+      "width": 1280,
+      "height": 1388,
+      "bytes": 142718,
+      "sha256": "f0680cf3ffa967bf4c0a618629934fd2bb96778b617cabd5b5fd287e96e98e38"
+    },
+    {
+      "file": "12-operador.png",
+      "width": 1280,
+      "height": 964,
+      "bytes": 72269,
+      "sha256": "9cc6ab2311a4935714ec3219dfbab160d869ed8e0f3897436f052e75291a6f48"
+    },
+    {
+      "file": "13-recuperacao.png",
+      "width": 1280,
+      "height": 1388,
+      "bytes": 147017,
+      "sha256": "62aeed89b49fa781dad9322f7ffed0747225a2cf314a6cf34aa684c6a1b33585"
+    },
+    {
+      "file": "14-celular.png",
+      "width": 390,
+      "height": 1456,
+      "bytes": 81222,
+      "sha256": "8f1c50a423715000c7c9a5907e9014b8de1e7fbb3dbdd6d6fd3f03e5a386a8d2"
+    },
+    {
+      "file": "15-configuracao-central.png",
+      "width": 1280,
+      "height": 900,
+      "bytes": 82968,
+      "sha256": "5fbd63ae38b704908d1fb3dec046aa4ad042e219eab55a28dbec3f5ed787a348"
+    },
+    {
+      "file": "16-sem-comunicacao.png",
+      "width": 1280,
+      "height": 964,
+      "bytes": 78852,
+      "sha256": "dcbb82a353054db700d22f2af7952bf22530cf40553b6afa1d2b63f6c621c1a8"
+    }
+  ]
+}

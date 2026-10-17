@@ -2,6 +2,8 @@
 
 ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicitamente autorizado pelo usuário com hardware ainda em avaliação. Compilação não comprova funcionamento físico.
 
+**[Manual ilustrado do portal local: telas, configuração e operação](../docs/manual-esp32/README.md)**
+
 ## Conteúdo
 
 - Controlador estático, dinâmico e híbrido, sensores opcionais, duração monotônica, histerese, pausa e simultaneidade 1–4.

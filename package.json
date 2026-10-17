@@ -17,6 +17,7 @@
     "contracts:generate": "node scripts/generate-openapi.js",
     "contracts:check": "node scripts/generate-openapi.js --check && node scripts/check-contracts.js",
     "test:ui": "node scripts/portal-ui-check.js",
-    "test:ui:local": "node scripts/local-portal-ui-check.js"
+    "test:ui:local": "node scripts/local-portal-ui-check.js",
+    "manual:esp32": "node scripts/capture-esp32-manual.js"
   }
 }

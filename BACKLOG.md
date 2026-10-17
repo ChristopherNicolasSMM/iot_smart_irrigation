@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 15/10/2026 · portal v0.13.0 / firmware experimental v0.6.0. Fonte canônica das próximas entregas.
+Atualizado: 17/10/2026 · portal v0.13.0 / firmware experimental v0.6.0. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -201,3 +201,9 @@ FW-06 avançou nas ferramentas: auditor offline do sdkconfig resolvido, revisão
 16 testes novos Python integrados ao CI/script nativo, 14 executáveis C++/UBSan e cinco fixtures hash/bytes, sete testes Python USB/layout aprovados. Candidata convertida/validada pelo gen_esp32part.py oficial v5.5.4 com secure v2/4MB e roundtrip dos campos. Sem alteração do C++/SDK/portal padrão, sem repetir builds alvo ou testes visuais/físicos. Firmware permanece 0.6.0; os sete builds anteriores não são atribuídos a esta conferência. Evidência/uso em iot/docs/AUDITORIA_PREPRODUCAO_ESP32.md.
 
 Pendências de desenvolvimento mantidas: SDK/bootloader reproduzível com NVS cifrada, inicialização/migração, custódia/rotação de chaves, recuperação autenticada e transporte local protegido; integração depende da revisão real do ESP32 e da estratégia de manutenção. Não houve geração de chaves, gravação ou alteração de eFuses. Primeiro ensaio do usuário continua no perfil padrão, com saídas desabilitadas.
+
+## Manual ilustrado do portal ESP32 — 17/10/2026
+
+FW-08: manual em iot/docs/manual-esp32/README.md, com 16 capturas PNG da página exata embutida no firmware 0.6.0, dados fictícios e API HTTP em localhost. Inclui seis abas, admin/operador, configuração central em consulta, agendas semanal/data, sensores, fila, recuperação, celular e falha de conexão. Links no README raiz, firmware e primeiro acesso. Gerador reproduzível scripts/capture-esp32-manual.js, comando npm run manual:esp32, dimensões/hashes e origem em capturas.json.
+
+Verificação em Chromium 149: navegação e cenários de interface, zero erros JavaScript/requisições externas, sem overflow horizontal em desktop 1280 px/celular 390 px e inspeção visual das imagens. Dados, IP e estados são demonstrativos. Não emula CPU/SDK/NVS/autenticação Basic real/acionamento físico; sem novo build ESP32 ou bancada. Firmware e portal do produto não foram alterados. Manual publicado como página Markdown renderizada no GitHub, com imagens versionadas no mesmo repositório.

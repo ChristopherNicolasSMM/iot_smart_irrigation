@@ -75,3 +75,5 @@ Para parâmetros avançados ou remoção explícita de senhas, o assistente acei
 Registrar versão, modelo/porta, sucesso/falha do build/upload, tempo de conexão, IP, acesso admin/operador e persistência após desligar/ligar. Nunca enviar senhas, token, CA privada ou arquivo de provisionamento. Testes de relé, sensores, RS485/100 m e TLS com portal central ficam para etapas posteriores.
 
 Na 0.6.0, usar o perfil padrão para o primeiro acesso. `esp32_matrix_hardened` exige preparação prévia de segurança da placa/SDK e bloqueará o boot no ambiente padrão. Backup e migrações: [RECUPERACAO_E_PRODUCAO_ESP32.md](RECUPERACAO_E_PRODUCAO_ESP32.md).
+
+Depois do acesso, consulte o [manual ilustrado do portal local](manual-esp32/README.md), com as seis abas, perfis, agendas, calibração, fila e recuperação. As imagens são de emulação HTTP com dados fictícios.
