@@ -1,4 +1,4 @@
-# Firmware experimental 0.7.0
+# Firmware experimental 0.7.1
 
 ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicitamente autorizado pelo usuário com hardware ainda em avaliação. Compilação não comprova funcionamento físico.
 
@@ -58,7 +58,7 @@ node iot/firmware/scripts/pack-configuration.mjs examples/device-config.json GUI
 
 Não publique arquivo com credenciais; configuração lógica é separada. O helper usa validateConfig do projeto e JSON.stringify/SHA-256 normativos.
 
-Após Wi-Fi/SNTP, Serial informa GUID; acessar http://IP_DA_PLACA/. Portal local usa HTTP Basic com comparação explícita e CSRF: apenas LAN confiável, sem exposição direta à Internet. Transporte local não cifra senha; produção exige solução TLS/rede protegida e provisionamento mais completo. Nenhuma senha padrão compartilhada é ativada.
+Após Wi-Fi/SNTP, Serial informa GUID; acessar http://IP_DA_PLACA/. Portal local usa HTTP Basic com comparação explícita e CSRF: apenas LAN confiável, sem exposição direta à Internet. Transporte local não cifra senha; produção exige solução TLS/rede protegida e provisionamento mais completo. Na 0.7.1, o primeiro cadastro usa `admin`/`admin` somente pelo AP, sem conta anterior; depois usa a senha permanente cadastrada.
 
 | API local | Permissão | Uso |
 |---|---|---|
@@ -144,7 +144,7 @@ Wi-Fi, senhas, CA, token, GPIO, bindings e presença física de sensores continu
 
 ## Provisionamento sem recompilar — 0.5.0
 
-Rede, senhas locais, origem HTTPS/token/CA e bindings podem ser mantidos pela GUI/USB. Na 0.5.0, o primeiro cadastro usava USB; na 0.7.0 ele usa o portal do AP protegido individualmente, conforme o [roteiro atual](../docs/PRIMEIRO_ACESSO_ESP32.md). A recuperação USB continua nos primeiros três minutos após reset, com controlador ocioso; não há AP aberto ou senha universal. Alteração válida só entra após reiniciar; erro de rede/senha é recuperado por USB sem apagar dados. Campos secretos omitidos mantêm valores; remoção explícita por string vazia (admin não pode ser removido). Destino central só muda com outbox vazia. Perfil inválido bloqueia rede/automação até recuperação. GPIO, sensores fisicamente presentes, polaridade e habilitação elétrica continuam compilados.
+Rede, senhas locais, origem HTTPS/token/CA e bindings podem ser mantidos pela GUI/USB. Na 0.5.0, o primeiro cadastro usava USB; na 0.7.0 ele usa o portal do AP protegido individualmente, conforme o [roteiro atual](../docs/PRIMEIRO_ACESSO_ESP32.md). A recuperação USB continua nos primeiros três minutos após reset, com controlador ocioso; a rede AP tem senha individual. Alteração válida só entra após reiniciar; erro de rede/senha é recuperado por USB sem apagar dados. Campos secretos omitidos mantêm valores; remoção explícita por string vazia (admin não pode ser removido). Destino central só muda com outbox vazia. Perfil inválido bloqueia rede/automação até recuperação. GPIO, sensores fisicamente presentes, polaridade e habilitação elétrica continuam compilados.
 
 Assistente: `python iot/firmware/scripts/provision-device.py --port COM5`; status/IP: mesmo comando com --status. Requer pyserial e monitor fechado. Portas podem reiniciar a placa ao abrir; mensagem de IP também disponível no Serial/roteador. Perfil/NVS/GUID persistem em upload comum. Ver [VALIDACAO_FIRMWARE_V05.md](../docs/VALIDACAO_FIRMWARE_V05.md) para API, precedência, testes e limites. FW-06 permanece parcial: cifragem/secure boot, gestão de produção e migração física não estão concluídos.
 

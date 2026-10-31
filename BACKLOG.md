@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 31/10/2026 · portal v0.13.0 / firmware experimental v0.7.0. Fonte canônica das próximas entregas.
+Atualizado: 31/10/2026 · portal v0.13.0 / firmware experimental v0.7.1. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -223,3 +223,7 @@ Pedido confirmado: AP no primeiro boot, cadastro de roteador/nome/acessos pelo p
 15 executáveis C++/UBSan e cinco fixtures hash/bytes; política Wi-Fi/tempo/cliente/wrap e restrição do cadastro inicial; validação/codec de AP com redação de senha/legado; 288 testes Node, 26 fixtures/OpenAPI e sintaxe. Navegador Chromium 149: 24 cenários em API sintética, incluindo primeiro acesso e AP-only; capturas atualizadas no manual. Builds alvo/evidências em BUILD_FIRMWARE_V07.json e VALIDACAO_FIRMWARE_V07.md.
 
 Sem upload ou rádio real neste ambiente; validar primeiro boot, associação, fallback, canal, clientes, reinício e persistência na placa do usuário. Chave inicial gerada é exibida no Serial durante o primeiro cadastro e consultável fisicamente com WIFI_ACCESS? em janela/ociosidade; não compartilhar a linha de senha. Perfil corrompido não libera reset de conta por AP. Produção segura/heap/latência/migração física/RS485 continuam pendentes conforme FW-04/FW-05/FW-06/HW-01/HW-02.
+
+## Firmware 0.7.1 — login inicial, 31/10/2026
+
+FW-06/FW-08: primeiro login do portal alterado a pedido para `admin`/`admin`; restrito ao primeiro cadastro pelo AP, sem substituir contas persistidas. Chave Wi-Fi individual e cadastro de senha permanente preservados. Manual/guia atualizados. Regressão nativa aprovada; builds registrados da 0.7.0 são históricos, sem novo build alvo/upload ou ensaio físico nesta revisão.

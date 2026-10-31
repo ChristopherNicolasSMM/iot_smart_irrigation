@@ -1,4 +1,4 @@
-# Primeiro acesso — firmware 0.7.0: rede própria e portal
+# Primeiro acesso — firmware 0.7.1: rede própria e portal
 
 31/10/2026. O ESP32 cria uma rede protegida para o primeiro cadastro pelo navegador. Com o roteador configurado, tenta conectar a ele; se a conexão Wi-Fi não ocorrer ou cair por 30 segundos, habilita novamente sua rede própria. Usar saídas físicas desabilitadas no primeiro ensaio.
 
@@ -24,17 +24,17 @@ No primeiro boot sem conta cadastrada, o Serial informa:
 
 ```text
 Initial device WiFi password: <senha individual gerada>
-First portal login: admin / same device WiFi password; set permanent admin in portal
+First portal login: admin / admin; set permanent admin in portal
 Device WiFi ready: ConectaAgro-<identificador>; portal http://192.168.4.1/
 ```
 
-A senha é aleatória, individual e persistida; não há senha universal de fábrica. Ela é exibida ao ser gerada e em cada boot enquanto o primeiro cadastro estiver pendente; após cadastrar a conta permanente, não é exibida automaticamente nos boots seguintes. Guarde-a e **oculte essa linha antes de compartilhar logs**. Nome e senha poderão ser alterados no portal.
+A senha da rede Wi-Fi é aleatória, individual e persistida. Ela é exibida ao ser gerada e em cada boot enquanto o primeiro cadastro estiver pendente; após cadastrar a conta permanente, não é exibida automaticamente nos boots seguintes. Guarde-a e **oculte essa linha antes de compartilhar logs**. Nome e senha poderão ser alterados no portal.
 
 1. No celular/computador, conecte à rede `ConectaAgro-...` informada pelo Serial.
 2. Use a senha individual indicada.
 3. Se o sistema avisar que não há Internet, mantenha a conexão.
 4. Abra **http://192.168.4.1/**. DNS/redirecionamento ajudam na detecção do portal; a abertura automática depende do sistema/navegador. Se não aparecer, digite o endereço HTTP completo.
-5. No primeiro cadastro, usuário **admin** e senha **igual à senha inicial da rede do ESP32**.
+5. No primeiro cadastro, usuário **admin** e senha **admin** (login inicial do portal na 0.7.1).
 
 Esse acesso inicial só funciona pela interface AP, no desenvolvimento e sem perfil persistido/conta anterior. Ele permite somente estado e provisionamento, com CSRF; não libera comandos, edição da irrigação ou histórico. Uma conta existente não é substituída por essa senha inicial.
 
@@ -58,7 +58,7 @@ Se a conexão ao roteador funcionar, o Serial informa:
 WiFi connected; portal http://IP_DA_PLACA/
 ```
 
-Conecte o celular/computador à rede do roteador e abra o IP informado. Ele é obtido por DHCP e pode mudar; não há garantia de hostname mDNS. Entre com `admin` e a **senha permanente cadastrada**, não com a chave temporária inicial. Não é necessário Internet para carregar a interface; agendas/testes continuam sujeitos à validade do relógio e às proteções existentes.
+Conecte o celular/computador à rede do roteador e abra o IP informado. Ele é obtido por DHCP e pode mudar; não há garantia de hostname mDNS. Entre com `admin` e a **senha permanente cadastrada**, em vez de `admin`, usado somente no primeiro cadastro. Não é necessário Internet para carregar a interface; agendas/testes continuam sujeitos à validade do relógio e às proteções existentes.
 
 Se a associação falhar, a rede própria abre após 30 segundos. Reconecte usando o nome/senha próprios definidos e abra **http://192.168.4.1/**. No modo somente AP, ela abre sem esperar por roteador. Se você alterou a senha admin, o navegador poderá pedir nova autenticação.
 

@@ -28,3 +28,7 @@ Não há reset de usuário/GUID/histórico, mudança de pinos ou partições. Ca
 Não foi conectado ESP32 a este ambiente, realizado upload ou medida de rádio/heap/latência/NVS. O usuário precisa validar o roteiro em [PRIMEIRO_ACESSO_ESP32.md](PRIMEIRO_ACESSO_ESP32.md). O rádio AP/STA compartilha canal; transições podem provocar desconexão breve. Sub-rede AP fixa 192.168.4.0/24 pode conflitar com roteador na mesma faixa: avaliar configuração da rede real. Captive browsers podem não abrir o diálogo Basic automaticamente; usar navegador normal e endereço HTTP direto.
 
 Perfil corrupto não ganha reset de conta pela rede; USB físico continua sendo a recuperação. Segredos em flash, SDK/bootloader/chaves/secure boot e proteção de transporte de produção permanecem FW-06 parcial. O modo hardened exige preparação prévia e não oferece o cadastro temporário. Sem validação elétrica/hidráulica/RS485 ou garantia de bancada.
+
+## Ajuste 0.7.1 — login inicial solicitado
+
+Primeiro login do portal alterado para `admin`/`admin`, exclusivamente no cadastro inicial pelo AP. A senha individual da rede Wi-Fi permanece independente. Perfis/contas existentes, restrições de rotas e exigência de senha permanente permanecem. Os sete builds acima são da 0.7.0; não representam compilação alvo da 0.7.1. Regressão nativa executada nesta revisão; sem upload ou teste físico.

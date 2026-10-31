@@ -1,6 +1,6 @@
 # Manual ilustrado — Portal local do ESP32
 
-**Conecta Agro · primeiro acesso atualizado para firmware 0.7.0 experimental · 31/10/2026**
+**Conecta Agro · primeiro acesso atualizado para firmware 0.7.1 experimental · 31/10/2026**
 
 A 0.7.0 inclui rede própria protegida, primeiro cadastro pelo navegador e acesso alternativo quando o roteador estiver indisponível. As duas capturas de rede abaixo são novas; as 16 capturas anteriores, identificadas pelo registro original, continuam ilustrando a operação da 0.6.0. A correção de cabeçalhos Windows da 0.6.1 permanece incluída.
 
@@ -31,7 +31,7 @@ Depois de compilar/gravar a 0.7.0, sem conta anterior:
 
 1. Abra o monitor Serial em 115200 e pressione EN/reset. Anote `Initial device WiFi password` e o SSID informado por `Device WiFi ready`.
 2. Conecte o computador/celular à rede `ConectaAgro-<final do GUID>` usando essa chave individual. É esperado o aviso de rede sem Internet; permaneça conectado.
-3. Abra **http://192.168.4.1/** no navegador normal. Login inicial: usuário **admin**, senha igual à chave inicial da rede própria. Esse acesso fica restrito ao cadastro inicial.
+3. Abra **http://192.168.4.1/** no navegador normal. Login inicial: usuário **admin**, senha **admin** na 0.7.1. Esse acesso fica restrito ao cadastro inicial.
 4. Na aba **Wi-Fi e acesso**, cadastre uma senha admin permanente. Informe o nome/senha do roteador de 2,4 GHz ou escolha **Usar apenas a rede do ESP32**. Opcionalmente personalize nome e senha da rede própria.
 5. Clique em **Salvar provisionamento e reiniciar**. Com roteador disponível, entre pelo IP que aparecer no Serial/roteador usando a senha admin permanente. Sem roteador, reconecte à rede própria e ao endereço acima.
 
@@ -41,7 +41,7 @@ Depois de compilar/gravar a 0.7.0, sem conta anterior:
 
 Para dispositivo já configurado, use as contas existentes. Após **30 segundos sem conexão ao roteador**, a rede própria volta automaticamente. Ao reconectar ao roteador, ela fecha depois de 30 segundos estáveis e nenhum cliente conectado ao AP. O endereço do roteador pode mudar pelo DHCP; o endereço próprio permanece `192.168.4.1`.
 
-A autenticação é HTTP Basic: não existe uma página interna com formulário de login para ilustrar. O firmware padrão não traz uma senha compartilhada. A conta operador é opcional e precisa ter sido cadastrada. O navegador pode conservar a autenticação; depois de alterar uma senha, poderá pedir as novas credenciais.
+A autenticação é HTTP Basic: não existe uma página interna com formulário de login para ilustrar. Na 0.7.1, o primeiro cadastro usa `admin`/`admin` somente pelo AP e exige definir a senha permanente. A senha da rede Wi-Fi continua sendo individual. A conta operador é opcional e precisa ter sido cadastrada. O navegador pode conservar a autenticação; depois de alterar uma senha, poderá pedir as novas credenciais.
 
 | Perfil | O que pode fazer no portal local |
 |---|---|

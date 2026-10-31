@@ -1219,7 +1219,7 @@ String recoveryBackup(String &error) {
   DynamicJsonDocument doc(65536);
   doc["schema_version"] = 1;
   doc["device_guid"] = guid;
-  doc["firmware"] = "0.7.0-experimental";
+  doc["firmware"] = "0.7.1-experimental";
   doc["recorded_at"] = clockReady() ? iso(time(nullptr)) : String();
   provisionJson(doc.createNestedObject("settings"), provision, true);
   if (!lockStore()) {
@@ -1667,7 +1667,7 @@ bool prepareLocalAccess() {
       !security.required) {
     Serial.println(String("Initial device WiFi password: ") + localApPassword);
     if (bootstrapMode)
-      Serial.println("First portal login: admin / same device WiFi password; "
+      Serial.println("First portal login: admin / admin; "
                      "set permanent admin in portal");
   }
   return true;
@@ -1733,7 +1733,7 @@ void serviceLocalPortal() {
 
 String statusJson(bool csrfToken, int role = 0) {
   DynamicJsonDocument d(4096);
-  d["firmware"] = "0.7.0-experimental";
+  d["firmware"] = "0.7.1-experimental";
   d["recovery_hold"] = recoveryHold;
   d["tzdb_version"] = tzdbVersion;
   JsonObject protections = d.createNestedObject("security");
@@ -1824,7 +1824,7 @@ int authenticate() {
            provided = web.header("Authorization");
     return credentialMatches(provided.c_str(), expected.c_str());
   };
-  if (bootstrapMode && matches("admin", localApPassword.c_str()))
+  if (bootstrapMode && matches("admin", "admin"))
     return 2;
   if (strlen(provision.adminPassword.c_str()) >= 12 &&
       matches("admin", provision.adminPassword.c_str()))
@@ -3071,7 +3071,7 @@ void setup() {
     Serial.println(
         "local_access_unavailable: preserve NVS; check provisioning/security");
   }
-  Serial.printf("firmware=0.7.0 guid=%s physical=%u\n", guid.c_str(),
+  Serial.printf("firmware=0.7.1 guid=%s physical=%u\n", guid.c_str(),
                 IOT_PHYSICAL_OUTPUTS);
   Serial.println(
       "USB provisioning: PROVISION? or PROVISION {expected_revision,settings}; "
