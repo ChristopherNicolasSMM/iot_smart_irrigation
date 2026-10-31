@@ -1,4 +1,4 @@
-# Firmware experimental 0.6.0
+# Firmware experimental 0.6.1
 
 ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicitamente autorizado pelo usuário com hardware ainda em avaliação. Compilação não comprova funcionamento físico.
 
@@ -14,6 +14,8 @@ ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicit
 - GUID NVS, fila persistente limitada, registro de comandos e auditoria local. Nenhum segredo de exemplo é credencial de produção.
 
 ## Compilar
+
+Erro `IOT_* was not declared` no Windows: corrigido na 0.6.1 pelo carregador **ProvisionConfig.h**. Atualizar o firmware completo; [diagnóstico e preservação do arquivo privado](../docs/CORRECAO_BUILD_WINDOWS_V061.md).
 
 Abra esta pasta no VS Code/PlatformIO ou execute:
 

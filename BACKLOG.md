@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 17/10/2026 · portal v0.13.0 / firmware experimental v0.6.0. Fonte canônica das próximas entregas.
+Atualizado: 31/10/2026 · portal v0.13.0 / firmware experimental v0.6.1. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -207,3 +207,11 @@ Pendências de desenvolvimento mantidas: SDK/bootloader reproduzível com NVS ci
 FW-08: manual em iot/docs/manual-esp32/README.md, com 16 capturas PNG da página exata embutida no firmware 0.6.0, dados fictícios e API HTTP em localhost. Inclui seis abas, admin/operador, configuração central em consulta, agendas semanal/data, sensores, fila, recuperação, celular e falha de conexão. Links no README raiz, firmware e primeiro acesso. Gerador reproduzível scripts/capture-esp32-manual.js, comando npm run manual:esp32, dimensões/hashes e origem em capturas.json.
 
 Verificação em Chromium 149: navegação e cenários de interface, zero erros JavaScript/requisições externas, sem overflow horizontal em desktop 1280 px/celular 390 px e inspeção visual das imagens. Dados, IP e estados são demonstrativos. Não emula CPU/SDK/NVS/autenticação Basic real/acionamento físico; sem novo build ESP32 ou bancada. Firmware e portal do produto não foram alterados. Manual publicado como página Markdown renderizada no GitHub, com imagens versionadas no mesmo repositório.
+
+## Firmware 0.6.1 — cabeçalhos de provisionamento no Windows, 31/10/2026
+
+FW-01/FW-06: reproduzida a colisão Provision.h/provision.h em resolução sem distinção de caixa. O carregador incluía a si próprio e pulava os padrões, deixando todos os IOT_* indefinidos; os builds Linux anteriores não capturaram a diferença. Carregador renomeado para ProvisionConfig.h, antigo nome removido do Git e defaults protegidos por #ifndef após inclusão privada. Privados parciais/vazios recebem padrões seguros, overrides explícitos são preservados. Wi-Fi/saídas continuam desabilitados por padrão; GUID/NVS/partições não foram alterados.
+
+Sete testes novos de compilação dos cabeçalhos (incluindo alias de nomes), 14 executáveis nativos C++/UBSan e cinco fixtures de bytes/hash aprovados; regressão USB/layout/auditoria de produção aprovada. Incluído job Windows no CI; não declarar execução Windows confirmada sem resultado do job. Sete builds alvo aprovados em Linux (três padrão, três sintéticos e hardened), com offset 0x50000, imagens fora das partições de dados e aplicativo combinado verificados. Evidências em iot/docs/BUILD_FIRMWARE_V061.json e CORRECAO_BUILD_WINDOWS_V061.md.
+
+O log enviado também usa main.cpp anterior ao provisionamento em runtime: instruída atualização do firmware inteiro, com alternativa de clone novo e preservação de arquivos privados antes de tratar conflitos. Avisos de caminhos longos/littlefs não são a causa desses erros. Nenhum upload, apagamento ou ensaio físico realizado. Próximo marco continua sendo o teste do usuário de USB/Wi-Fi/portal, com saídas desabilitadas.

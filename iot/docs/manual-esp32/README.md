@@ -1,6 +1,8 @@
 # Manual ilustrado — Portal local do ESP32
 
-**Conecta Agro · firmware 0.6.0 experimental · 17/10/2026**
+**Conecta Agro · capturas do firmware 0.6.0 experimental · 17/10/2026**
+
+Atualização de compilação: a 0.6.1 corrige os cabeçalhos de provisionamento no Windows e conserva as telas ilustradas. Para erros `IOT_*` indefinidos, ver [correção e atualização segura](../CORRECAO_BUILD_WINDOWS_V061.md).
 
 Este manual mostra o portal que acompanha o firmware do ESP32. As imagens foram capturadas em navegador a partir da **mesma página embutida na flash**, com uma API de demonstração no computador. Nomes, IP, rede, sensores, registros e estados de saída são fictícios. Nenhuma placa ou válvula foi acionada.
 

@@ -1,8 +1,10 @@
-# Primeiro build, Wi-Fi e acesso ao portal — firmware 0.6.0
+# Primeiro build, Wi-Fi e acesso ao portal — firmware 0.6.1
 
 Roteiro para ESP32 clássico WROOM-32/esp32dev. Esta entrega foi verificada em software; os passos abaixo ainda precisam ser executados na sua placa. Para este primeiro teste, use somente USB e mantenha as saídas físicas desabilitadas. Não é necessário conectar sensores ou válvulas.
 
-**Use a versão 0.6.0 atual**, que corrige os endereços de gravação da plataforma. Não use binários antigos 0.5.0. Upload normal preserva as regiões de dados da tabela atual; não gravar firmware.factory.bin inteiro em placa que precisa preservar NVS.
+**Use a versão 0.6.1 atual**, que corrige os endereços de gravação da plataforma. Não use binários antigos 0.5.0. Upload normal preserva as regiões de dados da tabela atual; não gravar firmware.factory.bin inteiro em placa que precisa preservar NVS.
+
+Erros `IOT_*` indefinidos no Windows: a 0.6.1 corrige a colisão entre Provision.h e provision.h. Consulte [atualização segura e diagnóstico](CORRECAO_BUILD_WINDOWS_V061.md), especialmente se houver arquivo privado ou cópia antiga do main.cpp.
 
 ## 1. Atualizar e compilar
 
