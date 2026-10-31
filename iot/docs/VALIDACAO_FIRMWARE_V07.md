@@ -32,3 +32,7 @@ Perfil corrupto não ganha reset de conta pela rede; USB físico continua sendo 
 ## Ajuste 0.7.1 — login inicial solicitado
 
 Primeiro login do portal alterado para `admin`/`admin`, exclusivamente no cadastro inicial pelo AP. A senha individual da rede Wi-Fi permanece independente. Perfis/contas existentes, restrições de rotas e exigência de senha permanente permanecem. Os sete builds acima são da 0.7.0; não representam compilação alvo da 0.7.1. Regressão nativa executada nesta revisão; sem upload ou teste físico.
+
+## Ajuste 0.7.2 — rede inicial aberta
+
+Rede própria de desenvolvimento sem senha por padrão, inclusive no fallback quando nenhuma senha AP foi personalizada. Login inicial do portal segue admin/admin. Senha AP personalizada e contas persistidas são preservadas. A chave gerada legada não é apagada e segue como alternativa do hardened; o SDK recebe nullptr quando o AP está aberto. Texto da GUI e guias atualizados. Regressão nativa e modelo do portal aprovados; sem novo build alvo, upload ou teste de rádio desta revisão. As capturas 0.7.0 são históricas e ainda mostram o texto anterior de rede protegida.

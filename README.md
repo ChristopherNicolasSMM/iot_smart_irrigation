@@ -6,7 +6,7 @@ Sistema de irrigação configurável para múltiplos ESP32, com portal central, 
 
 ## Estado atual
 
-Esta entrega contém portal central/local, simulador determinístico, persistência SQLite e cliente HTTP independente. Inclui propriedades e áreas, conjuntos por solenoide, agendas por dia, diagnóstico, integração HTTP(S), gestão de acesso e histórico filtrado com exportação CSV/JSON e arquivamento/transferência com histórico por propriedade e gestão auditada da fila. Inclui proteção por chave externa, migração/rotação, backup criptografado e recuperação em quarentena do portal/cliente, encaminhamento HTTP e ensaio de estabilidade documentado. Contém agora firmware experimental 0.7.1 em [iot/firmware](iot/firmware/README.md); inclui controlador, portal local embutido com editor visual de agendas/calibração/eventos, base temporal de 64 bits, cliente HTTPS e RS485; validação física e paridade completa permanecem pendentes.
+Esta entrega contém portal central/local, simulador determinístico, persistência SQLite e cliente HTTP independente. Inclui propriedades e áreas, conjuntos por solenoide, agendas por dia, diagnóstico, integração HTTP(S), gestão de acesso e histórico filtrado com exportação CSV/JSON e arquivamento/transferência com histórico por propriedade e gestão auditada da fila. Inclui proteção por chave externa, migração/rotação, backup criptografado e recuperação em quarentena do portal/cliente, encaminhamento HTTP e ensaio de estabilidade documentado. Contém agora firmware experimental 0.7.2 em [iot/firmware](iot/firmware/README.md); inclui controlador, portal local embutido com editor visual de agendas/calibração/eventos, base temporal de 64 bits, cliente HTTPS e RS485; validação física e paridade completa permanecem pendentes.
 
 ## Executar
 

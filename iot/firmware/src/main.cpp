@@ -1219,7 +1219,7 @@ String recoveryBackup(String &error) {
   DynamicJsonDocument doc(65536);
   doc["schema_version"] = 1;
   doc["device_guid"] = guid;
-  doc["firmware"] = "0.7.1-experimental";
+  doc["firmware"] = "0.7.2-experimental";
   doc["recorded_at"] = clockReady() ? iso(time(nullptr)) : String();
   provisionJson(doc.createNestedObject("settings"), provision, true);
   if (!lockStore()) {
@@ -1661,15 +1661,16 @@ bool prepareLocalAccess() {
           ? String("ConectaAgro-") +
                 guid.substring(guid.length() > 8 ? guid.length() - 8 : 0)
           : String(provision.apSsid.c_str());
-  localApPassword =
-      provision.apPassword.empty() ? key : String(provision.apPassword.c_str());
-  if ((fresh || bootstrapMode) && provision.apPassword.empty() &&
-      !security.required) {
-    Serial.println(String("Initial device WiFi password: ") + localApPassword);
-    if (bootstrapMode)
-      Serial.println("First portal login: admin / admin; "
-                     "set permanent admin in portal");
-  }
+  // Empty AP password now means an open development network. Preserve the
+  // legacy generated key for hardened profiles and never erase stored keys.
+  localApPassword = provision.apPassword.empty()
+                        ? (security.required ? key : String())
+                        : String(provision.apPassword.c_str());
+  if (!localApPassword.length())
+    Serial.println("Device WiFi access: open (no password)");
+  if (bootstrapMode)
+    Serial.println("First portal login: admin / admin; "
+                   "set permanent admin in portal");
   return true;
 }
 void wifiServiceTask(void *) {
@@ -1694,8 +1695,10 @@ void wifiServiceTask(void *) {
       WiFi.mode(station ? WIFI_AP_STA : WIFI_AP);
       WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1),
                         IPAddress(255, 255, 255, 0));
-      if (WiFi.softAP(localApSsid.c_str(), localApPassword.c_str(), 1, false,
-                      4)) {
+      if (WiFi.softAP(localApSsid.c_str(),
+                      localApPassword.length() ? localApPassword.c_str()
+                                               : nullptr,
+                      1, false, 4)) {
         apActive.store(true);
         Serial.println(String("Device WiFi ready: ") + localApSsid +
                        "; portal http://" + WiFi.softAPIP().toString() + "/");
@@ -1733,7 +1736,7 @@ void serviceLocalPortal() {
 
 String statusJson(bool csrfToken, int role = 0) {
   DynamicJsonDocument d(4096);
-  d["firmware"] = "0.7.1-experimental";
+  d["firmware"] = "0.7.2-experimental";
   d["recovery_hold"] = recoveryHold;
   d["tzdb_version"] = tzdbVersion;
   JsonObject protections = d.createNestedObject("security");
@@ -3071,7 +3074,7 @@ void setup() {
     Serial.println(
         "local_access_unavailable: preserve NVS; check provisioning/security");
   }
-  Serial.printf("firmware=0.7.1 guid=%s physical=%u\n", guid.c_str(),
+  Serial.printf("firmware=0.7.2 guid=%s physical=%u\n", guid.c_str(),
                 IOT_PHYSICAL_OUTPUTS);
   Serial.println(
       "USB provisioning: PROVISION? or PROVISION {expected_revision,settings}; "

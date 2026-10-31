@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 31/10/2026 · portal v0.13.0 / firmware experimental v0.7.1. Fonte canônica das próximas entregas.
+Atualizado: 31/10/2026 · portal v0.13.0 / firmware experimental v0.7.2. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -227,3 +227,7 @@ Sem upload ou rádio real neste ambiente; validar primeiro boot, associação, f
 ## Firmware 0.7.1 — login inicial, 31/10/2026
 
 FW-06/FW-08: primeiro login do portal alterado a pedido para `admin`/`admin`; restrito ao primeiro cadastro pelo AP, sem substituir contas persistidas. Chave Wi-Fi individual e cadastro de senha permanente preservados. Manual/guia atualizados. Regressão nativa aprovada; builds registrados da 0.7.0 são históricos, sem novo build alvo/upload ou ensaio físico nesta revisão.
+
+## Firmware 0.7.2 — rede inicial sem senha, 31/10/2026
+
+FW-06/FW-08: AP de desenvolvimento aberto quando não há senha AP personalizada; login inicial do portal admin/admin preservado. SDK recebe nullptr para AP aberto. Senhas AP personalizadas e contas existentes são preservadas; chave legada permanece em NVS sem ser usada pelo desenvolvimento. Hardened mantém a proteção anterior. GUI/guia atualizados. Regressão nativa e modelo do portal executados; sem build alvo, upload ou ensaio de rádio desta revisão.

@@ -1,8 +1,8 @@
 # Manual ilustrado — Portal local do ESP32
 
-**Conecta Agro · primeiro acesso atualizado para firmware 0.7.1 experimental · 31/10/2026**
+**Conecta Agro · primeiro acesso atualizado para firmware 0.7.2 experimental · 31/10/2026**
 
-A 0.7.0 inclui rede própria protegida, primeiro cadastro pelo navegador e acesso alternativo quando o roteador estiver indisponível. As duas capturas de rede abaixo são novas; as 16 capturas anteriores, identificadas pelo registro original, continuam ilustrando a operação da 0.6.0. A correção de cabeçalhos Windows da 0.6.1 permanece incluída.
+A 0.7.0 introduziu a rede própria; a 0.7.2 deixa o acesso inicial sem senha Wi-Fi, com primeiro cadastro pelo navegador e acesso alternativo quando o roteador estiver indisponível. As duas capturas de rede abaixo foram feitas na 0.7.0 e ainda mostram o texto anterior de rede protegida; as 16 capturas anteriores, identificadas pelo registro original, continuam ilustrando a operação da 0.6.0. A correção de cabeçalhos Windows da 0.6.1 permanece incluída.
 
 Este manual mostra o portal que acompanha o firmware do ESP32. As imagens foram capturadas em navegador a partir da **mesma página embutida na flash**, com uma API de demonstração no computador. Nomes, IP, rede, sensores, registros e estados de saída são fictícios. Nenhuma placa ou válvula foi acionada.
 
@@ -29,9 +29,9 @@ O portal central, executado em Node.js/Railway, é outra aplicação. Este docum
 
 Depois de compilar/gravar a 0.7.0, sem conta anterior:
 
-1. Abra o monitor Serial em 115200 e pressione EN/reset. Anote `Initial device WiFi password` e o SSID informado por `Device WiFi ready`.
-2. Conecte o computador/celular à rede `ConectaAgro-<final do GUID>` usando essa chave individual. É esperado o aviso de rede sem Internet; permaneça conectado.
-3. Abra **http://192.168.4.1/** no navegador normal. Login inicial: usuário **admin**, senha **admin** na 0.7.1. Esse acesso fica restrito ao cadastro inicial.
+1. Abra o monitor Serial em 115200 e pressione EN/reset. Anote o SSID informado por `Device WiFi ready`.
+2. Conecte o computador/celular à rede `ConectaAgro-<final do GUID>` sem senha Wi-Fi na 0.7.2. É esperado o aviso de rede sem Internet; permaneça conectado.
+3. Abra **http://192.168.4.1/** no navegador normal. Login inicial: usuário **admin**, senha **admin** na 0.7.2. Esse acesso fica restrito ao cadastro inicial.
 4. Na aba **Wi-Fi e acesso**, cadastre uma senha admin permanente. Informe o nome/senha do roteador de 2,4 GHz ou escolha **Usar apenas a rede do ESP32**. Opcionalmente personalize nome e senha da rede própria.
 5. Clique em **Salvar provisionamento e reiniciar**. Com roteador disponível, entre pelo IP que aparecer no Serial/roteador usando a senha admin permanente. Sem roteador, reconecte à rede própria e ao endereço acima.
 
@@ -41,7 +41,7 @@ Depois de compilar/gravar a 0.7.0, sem conta anterior:
 
 Para dispositivo já configurado, use as contas existentes. Após **30 segundos sem conexão ao roteador**, a rede própria volta automaticamente. Ao reconectar ao roteador, ela fecha depois de 30 segundos estáveis e nenhum cliente conectado ao AP. O endereço do roteador pode mudar pelo DHCP; o endereço próprio permanece `192.168.4.1`.
 
-A autenticação é HTTP Basic: não existe uma página interna com formulário de login para ilustrar. Na 0.7.1, o primeiro cadastro usa `admin`/`admin` somente pelo AP e exige definir a senha permanente. A senha da rede Wi-Fi continua sendo individual. A conta operador é opcional e precisa ter sido cadastrada. O navegador pode conservar a autenticação; depois de alterar uma senha, poderá pedir as novas credenciais.
+A autenticação é HTTP Basic: não existe uma página interna com formulário de login para ilustrar. Na 0.7.1, o primeiro cadastro usa `admin`/`admin` somente pelo AP e exige definir a senha permanente. A rede Wi-Fi de desenvolvimento começa aberta; uma senha própria pode ser definida no portal. A conta operador é opcional e precisa ter sido cadastrada. O navegador pode conservar a autenticação; depois de alterar uma senha, poderá pedir as novas credenciais.
 
 | Perfil | O que pode fazer no portal local |
 |---|---|
@@ -263,7 +263,7 @@ Se perder o roteador, aguarde 30 segundos e conecte à rede própria. Se perder 
 
 ![Portal 0.7.0 com rede própria ativa e campos para alterar nome e senha](imagens/18-rede-propria.png)
 
-Em **Rede própria do ESP32**, altere o nome (até 32 bytes) e, se desejar, a senha (12–63 caracteres ASCII sem espaços). Campo de senha vazio preserva a atual. O nome da rede não altera o GUID ou o histórico. A senha do AP é independente da senha admin permanente. As alterações são aplicadas ao salvar e reiniciar.
+Em **Rede própria do ESP32**, altere o nome (até 32 bytes) e, se desejar, a senha (12–63 caracteres ASCII sem espaços). Campo de senha vazio preserva a atual; sem senha AP personalizada a rede de desenvolvimento fica aberta. O nome da rede não altera o GUID ou o histórico. A senha do AP é independente da senha admin permanente. As alterações são aplicadas ao salvar e reiniciar.
 
 Para funcionar somente pela rede própria, marque **Usar apenas a rede do ESP32**; isso remove explicitamente a associação ao roteador. Para voltar ao roteador, digite o SSID e a senha desejados. O fallback considera a conexão Wi-Fi, não a disponibilidade isolada da Internet.
 
