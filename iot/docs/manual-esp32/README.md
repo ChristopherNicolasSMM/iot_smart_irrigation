@@ -1,8 +1,8 @@
 # Manual ilustrado — Portal local do ESP32
 
-**Conecta Agro · capturas do firmware 0.6.0 experimental · 17/10/2026**
+**Conecta Agro · primeiro acesso atualizado para firmware 0.7.0 experimental · 31/10/2026**
 
-Atualização de compilação: a 0.6.1 corrige os cabeçalhos de provisionamento no Windows e conserva as telas ilustradas. Para erros `IOT_*` indefinidos, ver [correção e atualização segura](../CORRECAO_BUILD_WINDOWS_V061.md).
+A 0.7.0 inclui rede própria protegida, primeiro cadastro pelo navegador e acesso alternativo quando o roteador estiver indisponível. As duas capturas de rede abaixo são novas; as 16 capturas anteriores, identificadas pelo registro original, continuam ilustrando a operação da 0.6.0. A correção de cabeçalhos Windows da 0.6.1 permanece incluída.
 
 Este manual mostra o portal que acompanha o firmware do ESP32. As imagens foram capturadas em navegador a partir da **mesma página embutida na flash**, com uma API de demonstração no computador. Nomes, IP, rede, sensores, registros e estados de saída são fictícios. Nenhuma placa ou válvula foi acionada.
 
@@ -27,12 +27,19 @@ O portal central, executado em Node.js/Railway, é outra aplicação. Este docum
 
 ## 1. Primeiro acesso e perfis
 
-Depois de compilar/gravar e cadastrar rede e senhas por USB:
+Depois de compilar/gravar a 0.7.0, sem conta anterior:
 
-1. Conecte o computador ou celular à rede que alcança a placa. O Wi-Fi do ESP32 clássico utiliza 2,4 GHz.
-2. Obtenha o IP pelo roteador ou pelo monitor Serial; a mensagem esperada informa `portal http://IP/`.
-3. Abra `http://IP_DA_PLACA/` no navegador. O endereço `192.0.2.10` das imagens é ilustrativo: use o IP real.
-4. Na solicitação de autenticação do navegador, entre com `admin` ou `operador` e a senha cadastrada.
+1. Abra o monitor Serial em 115200 e pressione EN/reset. Anote `Initial device WiFi password` e o SSID informado por `Device WiFi ready`.
+2. Conecte o computador/celular à rede `ConectaAgro-<final do GUID>` usando essa chave individual. É esperado o aviso de rede sem Internet; permaneça conectado.
+3. Abra **http://192.168.4.1/** no navegador normal. Login inicial: usuário **admin**, senha igual à chave inicial da rede própria. Esse acesso fica restrito ao cadastro inicial.
+4. Na aba **Wi-Fi e acesso**, cadastre uma senha admin permanente. Informe o nome/senha do roteador de 2,4 GHz ou escolha **Usar apenas a rede do ESP32**. Opcionalmente personalize nome e senha da rede própria.
+5. Clique em **Salvar provisionamento e reiniciar**. Com roteador disponível, entre pelo IP que aparecer no Serial/roteador usando a senha admin permanente. Sem roteador, reconecte à rede própria e ao endereço acima.
+
+![Primeiro cadastro no portal da rede do ESP32](imagens/17-primeiro-acesso-ap.png)
+
+*Captura da 0.7.0 com API sintética: somente Wi-Fi e acesso aparece durante o primeiro cadastro. Nenhuma chave real foi incluída.*
+
+Para dispositivo já configurado, use as contas existentes. Após **30 segundos sem conexão ao roteador**, a rede própria volta automaticamente. Ao reconectar ao roteador, ela fecha depois de 30 segundos estáveis e nenhum cliente conectado ao AP. O endereço do roteador pode mudar pelo DHCP; o endereço próprio permanece `192.168.4.1`.
 
 A autenticação é HTTP Basic: não existe uma página interna com formulário de login para ilustrar. O firmware padrão não traz uma senha compartilhada. A conta operador é opcional e precisa ter sido cadastrada. O navegador pode conservar a autenticação; depois de alterar uma senha, poderá pedir as novas credenciais.
 
@@ -250,7 +257,15 @@ Em **Wi-Fi e acesso**, clique em **Carregar dados atuais** para obter SSID, revi
 
 **Campos secretos vazios mantêm os valores atuais**, salvo as opções explícitas de remoção. As senhas locais devem ter pelo menos 12 bytes, e a senha do operador deve ser diferente da admin. Salvar pode encerrar a conexão atual; isso é esperado. O IP pode mudar pelo DHCP.
 
-Se perder Wi-Fi ou senha admin, utilize a recuperação física por USB na janela inicial de três minutos, conforme o [guia de primeiro acesso](../PRIMEIRO_ACESSO_ESP32.md). Não apague a NVS para tentar recuperar acesso.
+Se perder o roteador, aguarde 30 segundos e conecte à rede própria. Se perder a senha admin, utilize a recuperação física por USB na janela inicial de três minutos, conforme o [guia de primeiro acesso](../PRIMEIRO_ACESSO_ESP32.md). Não apague a NVS para tentar recuperar acesso.
+
+### Nome, senha e acesso pela rede própria
+
+![Portal 0.7.0 com rede própria ativa e campos para alterar nome e senha](imagens/18-rede-propria.png)
+
+Em **Rede própria do ESP32**, altere o nome (até 32 bytes) e, se desejar, a senha (12–63 caracteres ASCII sem espaços). Campo de senha vazio preserva a atual. O nome da rede não altera o GUID ou o histórico. A senha do AP é independente da senha admin permanente. As alterações são aplicadas ao salvar e reiniciar.
+
+Para funcionar somente pela rede própria, marque **Usar apenas a rede do ESP32**; isso remove explicitamente a associação ao roteador. Para voltar ao roteador, digite o SSID e a senha desejados. O fallback considera a conexão Wi-Fi, não a disponibilidade isolada da Internet.
 
 ### Conectar ao portal central
 
@@ -309,9 +324,11 @@ Em suporte, compartilhe versão, perfil, mensagem de erro e cenário. Não envie
 
 ## 14. Como as imagens foram produzidas
 
-As 16 imagens usam Chromium 149, a página `LocalPortalPage.h` do firmware 0.6.0 e dados sintéticos. Há páginas completas e recortes de painéis para manter os campos legíveis. Os recortes são capturas do navegador; o layout do produto não foi redesenhado para o manual.
+As 16 imagens originais usam Chromium 149, a página `LocalPortalPage.h` do firmware 0.6.0 e dados sintéticos. Há páginas completas e recortes de painéis para manter os campos legíveis. Os recortes são capturas do navegador; o layout do produto não foi redesenhado para o manual.
 
 A captura automática exercitou navegação, início/parada fictícios, alteração local de calendário, consulta de sensores, expansão/reenvio de evento, reprocessamento de fila, consulta de provisionamento, permissões e perda de conexão. Verificou ausência de erros JS, de requisições externas e de transbordamento horizontal em desktop/celular. Confira o [registro das capturas, dimensões e hashes](capturas.json).
+
+As imagens 17 e 18 usam a página embutida da 0.7.0 e os cenários de primeiro cadastro/fallback de `scripts/local-portal-ui-check.js`. O [registro da atualização](../LOCAL_PORTAL_UI_V07.json) contém os 24 cenários e os [hashes das duas imagens](capturas-v07.json) identificam os arquivos. Para reproduzi-las, execute `node scripts/local-portal-ui-check.js` com as mesmas variáveis de navegador; o script grava `/tmp/irrigation-ap-first-setup.png` e `/tmp/irrigation-ap-fallback.png`.
 
 Isso emula a **interface e respostas HTTP**. Não emula CPU ESP32, SDK, NVS, GPIO, autenticação Basic real, leituras físicas ou confirmação HTTPS central. As capturas não devem ser usadas como evidência de bancada ou de segurança de produção.
 

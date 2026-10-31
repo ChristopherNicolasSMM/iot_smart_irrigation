@@ -187,3 +187,7 @@ Etapas 4–6 entregues em software: schemas/OpenAPI e fixtures do protocolo HTTP
 ## Firmware experimental — adendo 14/10/2026
 
 Usuário autorizou iniciar firmware antes do fechamento físico. Base HD-38/DS18B20, sensores opcionais por conjunto, matriz com energia e dados até pontos remotos de 100 m. Firmware 0.2 implementa primeiras rotinas com limites explícitos, sem substituir requisitos completos do piloto. Ver iot/docs/VALIDACAO_FIRMWARE_V02.md para divergências/pendências; hardware e fonte continuam em avaliação.
+
+## Rede própria e primeiro acesso — confirmado em 31/10/2026
+
+O ESP32 deve criar sua própria rede com portal no primeiro acesso, permitir cadastrar uma rede existente pelo navegador e reiniciar para aplicar. Sem conexão ao roteador deve habilitar novamente sua rede própria, permitindo alterar nome e acessos pelo portal. Implementação 0.7.0: AP protegido individualmente, cadastro inicial restrito, contas permanentes, fallback após 30 s, histerese e preservação de clientes ativos. Nome/senha da rede própria são independentes do GUID e da configuração lógica. Ver iot/docs/PRIMEIRO_ACESSO_ESP32.md.

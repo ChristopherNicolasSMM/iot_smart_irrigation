@@ -13,12 +13,12 @@ Com portal central configurado, a configuração local fica somente para consult
 
 Edite index.html, style.css e app.js. O pre-script PlatformIO gera LocalPortalPage.h automaticamente; para conferir antes do commit: `python iot/firmware/scripts/embed-portal.py --check`. O hash da configuração é calculado na placa, sem exigir contexto HTTPS do navegador. IDs novos usam valores aleatórios para evitar reutilização automática de nomes removidos; IDs existentes são preservados. Presença física/GPIO continuam compilados; bindings e segredos podem ser provisionados em NVS na 0.5.0.
 
-Na 0.5.0, a aba **Wi-Fi e acesso** permite manutenção administrativa sem recompilar: SSID/senhas, integração HTTPS e bindings, com reinício após salvar. Cadastro inicial e recuperação por USB: [PRIMEIRO_ACESSO_ESP32.md](../../docs/PRIMEIRO_ACESSO_ESP32.md). Os passos de provision.h abaixo são opcionais para o primeiro teste e continuam disponíveis como base compilada. Pinos e habilitação física continuam compilados.
+Na 0.7.0, a aba **Wi-Fi e acesso** permite primeiro cadastro pela rede própria e manutenção administrativa sem recompilar: roteador, nome/senha AP, contas, integração HTTPS e bindings, com reinício após salvar. Primeiro acesso e recuperação opcional por USB: [PRIMEIRO_ACESSO_ESP32.md](../../docs/PRIMEIRO_ACESSO_ESP32.md). Os passos de provision.h abaixo são opcionais para o primeiro teste e continuam disponíveis como base compilada. Pinos e habilitação física continuam compilados.
 
 ## Compilar e gravar (a partir da raiz)
 
-1. Instale PlatformIO/VS Code e copie `iot/firmware/include/provision.example.h` para `iot/firmware/include/provision.h`.
-2. Preencha Wi-Fi, senha admin com pelo menos 12 caracteres e senha diferente para operador. Configure GUID/bindings e CA/token do portal central quando usado. O arquivo é ignorado pelo Git.
+1. Instale PlatformIO/VS Code. O primeiro cadastro pode ser feito inteiramente pelo portal.
+2. Opcional: copie `iot/firmware/include/provision.example.h` para `iot/firmware/include/provision.h` para uma base compilada. Configure Wi-Fi, senha admin (mínimo 12 caracteres), GUID/bindings e CA/token quando usados. Esse arquivo privado é ignorado pelo Git.
 3. Mantenha `IOT_PHYSICAL_OUTPUTS=0` até validar circuito, polaridade e proteção.
 4. Execute:
 
@@ -30,6 +30,6 @@ pio device monitor -d iot/firmware -e esp32_matrix
 
 Use `esp32_sensor_bench` para bancada com sensores locais ou `esp32_remote_node` para nó, conforme documentação. Se necessário, informe a porta com `--upload-port COM5` no comando de upload (substitua pela porta real).
 
-5. Consulte o IP da placa na rede/roteador e abra `http://IP_DA_PLACA/`. Use `admin` ou `operador` com a senha provisionada. O portal só é iniciado quando há SSID e senha admin válida. Sem provisionamento, os padrões não habilitam Wi-Fi, portal ou saídas. O compilador pode remover a página do binário quando o portal está desabilitado por constantes.
+5. Sem conta anterior, abra o monitor Serial e pressione EN/reset. Conecte à rede `ConectaAgro-<final do GUID>` com a chave individual exibida e abra **http://192.168.4.1/**. Primeiro login: `admin` e a mesma chave inicial. Cadastre uma senha admin permanente e o roteador; salve e reinicie. Dispositivos já configurados usam as contas existentes. Sem conexão ao roteador por 30 s, o AP abre novamente. Nome/senha próprios podem ser modificados no portal. Consulte o [roteiro completo](../../docs/PRIMEIRO_ACESSO_ESP32.md).
 
 A gravação normal já inclui a página na flash. Não há etapa separada de upload do site. Não use `erase_flash` como atualização comum: preserve GUID/NVS e observe a alteração de partições da versão 0.2. A memória e o funcionamento em placa continuam sujeitos à validação de bancada. O portal local usa HTTP Basic sem TLS e deve ficar em LAN confiável.

@@ -7,16 +7,18 @@
 #include "JsonSpan.h"
 #include "LocalPortalPolicy.h"
 #include "OccurrenceLedger.h"
-#include "ProvisionConfig.h"
 #include "ProvisionCodec.h"
+#include "ProvisionConfig.h"
 #include "QueueCodec.h"
 #include "Recovery.h"
 #include "RecoveryPlan.h"
 #include "RemoteProtocol.h"
 #include "ScheduleDiagnostics.h"
 #include "SecurityPolicy.h"
+#include "WifiFallback.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <DNSServer.h>
 #include <HTTPClient.h>
 #include <Preferences.h>
 #include <WebServer.h>
@@ -56,6 +58,10 @@ constexpr size_t bodyLimit = 16384;
 constexpr size_t recoveryLimit = 32768;
 SecurityState security;
 bool recoveryHold = false, recoveryFault = false;
+bool bootstrapMode = false, portalRunning = false, dnsRunning = false;
+std::atomic<bool> apActive{false};
+String localApSsid, localApPassword;
+DNSServer captiveDns;
 SemaphoreHandle_t networkMutex;
 struct ScopedMutex {
   SemaphoreHandle_t handle;
@@ -1071,6 +1077,11 @@ String provisionStatus() {
   result["recovery_fault"] = recoveryFault;
   result["usb_recovery_allowed"] = security.usbRecoveryAllowed();
   result["guid"] = guid;
+  result["ap_ssid"] = localApSsid;
+  result["ap_active"] = apActive.load();
+  result["ap_ip"] = apActive.load() ? WiFi.softAPIP().toString() : String();
+  result["has_ap_password"] = localApPassword.length() >= 12;
+  result["initial_setup"] = bootstrapMode;
   result["provision_fault"] = provisionFault;
   result["restart_pending"] = restartPending;
   result["wifi_connected"] = WiFi.status() == WL_CONNECTED;
@@ -1208,14 +1219,15 @@ String recoveryBackup(String &error) {
   DynamicJsonDocument doc(65536);
   doc["schema_version"] = 1;
   doc["device_guid"] = guid;
-  doc["firmware"] = "0.6.1-experimental";
+  doc["firmware"] = "0.7.0-experimental";
   doc["recorded_at"] = clockReady() ? iso(time(nullptr)) : String();
   provisionJson(doc.createNestedObject("settings"), provision, true);
   if (!lockStore()) {
     error = "storage_busy";
     return String();
   }
-  doc["configuration_envelope"] = store.getString("config", "");
+  doc["configuration_envelope"] =
+      (store.isKey("config") ? store.getString("config", "") : String());
   JsonArray sensors = doc.createNestedArray("calibration");
   for (unsigned i = 0; i < 4; ++i) {
     JsonObject row = sensors.createNestedObject();
@@ -1526,7 +1538,21 @@ void serialProvision() {
         Serial.println("PROVISION_RESULT "
                        "{\"saved\":false,\"error\":\"line_too_large_or_usb_"
                        "window_closed\"}");
-      else if (serialProvisionLine == "PROVISION?")
+      else if (serialProvisionLine == "WIFI_ACCESS?") {
+        if (!security.usbRecoveryAllowed() || !usbProvisionWindow ||
+            !recoveryIdle())
+          Serial.println("WIFI_ACCESS unavailable");
+        else {
+          DynamicJsonDocument access(512);
+          access["ssid"] = localApSsid;
+          access["password"] = localApPassword;
+          access["portal"] = "http://192.168.4.1/";
+          access["initial_setup"] = bootstrapMode;
+          String raw;
+          serializeJson(access, raw);
+          Serial.println(String("WIFI_ACCESS ") + raw);
+        }
+      } else if (serialProvisionLine == "PROVISION?")
         Serial.println(String("PROVISION_STATUS ") + provisionStatus());
       else if (serialProvisionLine == "RECOVERY_BACKUP" ||
                serialProvisionLine.startsWith("RECOVERY_RESTORE ") ||
@@ -1597,9 +1623,117 @@ void serialProvision() {
   }
 }
 
+bool apInterfaceRequest() {
+  return apActive.load() && web.client().localIP() == WiFi.softAPIP();
+}
+bool prepareLocalAccess() {
+  if (!storageReady)
+    return false;
+  bootstrapMode =
+      needsInitialPortal(security.required, store.isKey("prov_v1"),
+                         recoveryFault, provision.adminPassword.empty());
+  if (bootstrapMode)
+    provisionFault =
+        false; // no stored account to bypass; complete first setup through AP
+  if (security.required && provision.adminPassword.size() < 12) {
+    Serial.println("secure_initial_provisioning_required");
+    return false;
+  }
+  String key = store.isKey("ap_key") ? store.getString("ap_key", "") : String();
+  const bool fresh = !store.isKey("ap_key");
+  if (fresh) {
+    uint8_t random[12];
+    esp_fill_random(random, sizeof(random));
+    char encoded[25];
+    for (unsigned i = 0; i < 12; ++i)
+      snprintf(encoded + i * 2, 3, "%02x", random[i]);
+    key = encoded;
+    if (store.putString("ap_key", key) != key.length())
+      return false;
+  }
+  if (key.length() < 12 || key.length() > 63)
+    return false;
+  for (unsigned i = 0; i < key.length(); ++i)
+    if (key[i] < 33 || key[i] > 126)
+      return false;
+  localApSsid =
+      provision.apSsid.empty()
+          ? String("ConectaAgro-") +
+                guid.substring(guid.length() > 8 ? guid.length() - 8 : 0)
+          : String(provision.apSsid.c_str());
+  localApPassword =
+      provision.apPassword.empty() ? key : String(provision.apPassword.c_str());
+  if ((fresh || bootstrapMode) && provision.apPassword.empty() &&
+      !security.required) {
+    Serial.println(String("Initial device WiFi password: ") + localApPassword);
+    if (bootstrapMode)
+      Serial.println("First portal login: admin / same device WiFi password; "
+                     "set permanent admin in portal");
+  }
+  return true;
+}
+void wifiServiceTask(void *) {
+  const bool station =
+      !bootstrapMode && !provisionFault && !provision.ssid.empty();
+  WiFi.persistent(false);
+  WiFi.mode(station ? WIFI_STA : WIFI_AP);
+  if (station) {
+    WiFi.setAutoReconnect(true);
+    WiFi.begin(provision.ssid.c_str(), provision.wifiPassword.c_str());
+  }
+  WifiFallback policy;
+  uint32_t retryAt = millis(), apAttemptAt = millis() - 5000;
+  for (;;) {
+    const uint32_t now = millis();
+    const bool connected = station && WiFi.status() == WL_CONNECTED;
+    const bool desired =
+        policy.update(now, station, connected,
+                      apActive.load() ? WiFi.softAPgetStationNum() : 0);
+    if (desired && !apActive.load() && uint32_t(now - apAttemptAt) >= 5000) {
+      apAttemptAt = now;
+      WiFi.mode(station ? WIFI_AP_STA : WIFI_AP);
+      WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1),
+                        IPAddress(255, 255, 255, 0));
+      if (WiFi.softAP(localApSsid.c_str(), localApPassword.c_str(), 1, false,
+                      4)) {
+        apActive.store(true);
+        Serial.println(String("Device WiFi ready: ") + localApSsid +
+                       "; portal http://" + WiFi.softAPIP().toString() + "/");
+      } else
+        Serial.println("device_wifi_start_failed; retrying");
+    } else if (!desired && apActive.load()) {
+      if (WiFi.softAPdisconnect(false)) {
+        apActive.store(false);
+        WiFi.mode(WIFI_STA);
+        Serial.println("Device WiFi closed after stable router connection and "
+                       "no local clients");
+      }
+    }
+    if (station && !connected && uint32_t(now - retryAt) >= 30000) {
+      retryAt = now;
+      WiFi.reconnect();
+    }
+    vTaskDelay(pdMS_TO_TICKS(250));
+  }
+}
+void serviceLocalPortal() {
+  if (apActive.load() && !dnsRunning) {
+    captiveDns.setTTL(1);
+    dnsRunning = captiveDns.start(53, "*", WiFi.softAPIP());
+  }
+  if (!apActive.load() && dnsRunning) {
+    captiveDns.stop();
+    dnsRunning = false;
+  }
+  if (dnsRunning)
+    captiveDns.processNextRequest();
+  if (portalRunning)
+    web.handleClient();
+}
+
 String statusJson(bool csrfToken, int role = 0) {
   DynamicJsonDocument d(4096);
-  d["firmware"] = "0.6.1-experimental";
+  d["firmware"] = "0.7.0-experimental";
   d["recovery_hold"] = recoveryHold;
   d["tzdb_version"] = tzdbVersion;
   JsonObject protections = d.createNestedObject("security");
@@ -1609,6 +1743,10 @@ String statusJson(bool csrfToken, int role = 0) {
   protections["nvs_encrypted"] = security.nvsEncrypted;
   protections["ready"] = security.ready();
   d["wifi_connected"] = WiFi.status() == WL_CONNECTED;
+  d["ap_active"] = apActive.load();
+  d["ap_ssid"] = localApSsid;
+  d["ap_ip"] = apActive.load() ? WiFi.softAPIP().toString() : String();
+  d["initial_setup"] = bootstrapMode;
   d["ip"] =
       WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : String();
   d["restart_pending"] = restartPending;
@@ -1620,12 +1758,13 @@ String statusJson(bool csrfToken, int role = 0) {
             ? "central"
             : "local";
     JsonObject capabilities = d.createNestedObject("capabilities");
-    capabilities["configure"] = role == 2 &&
+    capabilities["configure"] = !bootstrapMode && role == 2 &&
                                 !strlen(provision.portalUrl.c_str()) &&
                                 !IRRIGATION_REMOTE_NODE;
-    capabilities["calibrate"] = role == 2 && !IRRIGATION_ROLE_MATRIX;
-    capabilities["outbox"] = role == 2;
-    capabilities["command"] = !IRRIGATION_REMOTE_NODE;
+    capabilities["calibrate"] =
+        !bootstrapMode && role == 2 && !IRRIGATION_ROLE_MATRIX;
+    capabilities["outbox"] = !bootstrapMode && role == 2;
+    capabilities["command"] = !bootstrapMode && !IRRIGATION_REMOTE_NODE;
     d["local_role_type"] =
         IRRIGATION_REMOTE_NODE
             ? "remote_node"
@@ -1659,6 +1798,11 @@ String statusJson(bool csrfToken, int role = 0) {
   return s;
 }
 int authenticate() {
+  if (!bootstrapRequestAllowed(bootstrapMode, apInterfaceRequest(),
+                               web.uri().c_str())) {
+    web.send(403, "application/json", "{\"error\":\"initial_setup_required\"}");
+    return 0;
+  }
   // Strict scheme gate avoids accepting arbitrary Authorization text in older
   // WebServer.
   if (!web.header("Authorization").startsWith("Basic ")) {
@@ -1680,6 +1824,8 @@ int authenticate() {
            provided = web.header("Authorization");
     return credentialMatches(provided.c_str(), expected.c_str());
   };
+  if (bootstrapMode && matches("admin", localApPassword.c_str()))
+    return 2;
   if (strlen(provision.adminPassword.c_str()) >= 12 &&
       matches("admin", provision.adminPassword.c_str()))
     return 2;
@@ -2233,9 +2379,17 @@ void localPortal() {
     serializeJson(result, response);
     web.send(200, "application/json", response);
   });
-  web.onNotFound(
-      [] { web.send(404, "application/json", "{\"error\":\"not_found\"}"); });
+  web.onNotFound([] {
+    if (apInterfaceRequest() && !web.uri().startsWith("/api/")) {
+      web.sendHeader("Location",
+                     String("http://") + WiFi.softAPIP().toString() + "/");
+      web.send(302, "text/plain", "");
+      return;
+    }
+    web.send(404, "application/json", "{\"error\":\"not_found\"}");
+  });
   web.begin();
+  portalRunning = true;
 }
 // Network runs in its own task: TLS/HTTP waits cannot prolong local run
 // duration.
@@ -2854,7 +3008,9 @@ void setup() {
     config.temperatureSlot[0] = 0;
   }
   String stored =
-      IRRIGATION_REMOTE_NODE ? String() : store.getString("config", "");
+      IRRIGATION_REMOTE_NODE
+          ? String()
+          : (store.isKey("config") ? store.getString("config", "") : String());
   if (stored.length()) {
     String error;
     if (!applyEnvelope(stored, error))
@@ -2883,24 +3039,39 @@ void setup() {
       journal.event(i, "interrupted", "restart_interrupted", Source::Manual);
     outputs.off(i);
   }
-  if (!provisionFault && strlen(provision.ssid.c_str())) {
-    WiFi.persistent(false);
-    WiFi.setAutoReconnect(true);
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(provision.ssid.c_str(), provision.wifiPassword.c_str());
+  // Enable RF entropy before generating the individual access key.
+  WiFi.persistent(false);
+  if (!WiFi.mode(WIFI_STA)) {
+    bootHold = true;
+    Serial.println("wifi_init_failed: outputs blocked");
+    return;
+  }
+  if (prepareLocalAccess()) {
+    if (bootstrapMode)
+      bootHold = true;
+    localPortal();
+    if (xTaskCreatePinnedToCore(wifiServiceTask, "wifi-service", 8192, nullptr,
+                                1, nullptr, 0) != pdPASS) {
+      storageReady = false;
+      bootHold = true;
+      Serial.println("wifi_task_failed: outputs blocked");
+      return;
+    }
     esp_sntp_set_time_sync_notification_cb(
         [](struct timeval *) { clockSynchronized.store(true); });
     configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
     if (config.timezone.length())
       selectTimezone(config.timezone.c_str());
-    if (strlen(provision.adminPassword.c_str()) >= 12)
-      localPortal();
-    if (!IRRIGATION_REMOTE_NODE && strlen(provision.portalUrl.c_str()) &&
-        strlen(provision.deviceToken.c_str()))
+    if (!bootstrapMode && !provisionFault && !IRRIGATION_REMOTE_NODE &&
+        !provision.portalUrl.empty() && !provision.deviceToken.empty())
       xTaskCreatePinnedToCore(networkTask, "portal-network", 12288, nullptr, 1,
                               nullptr, 0);
+  } else {
+    bootHold = true;
+    Serial.println(
+        "local_access_unavailable: preserve NVS; check provisioning/security");
   }
-  Serial.printf("firmware=0.6.1 guid=%s physical=%u\n", guid.c_str(),
+  Serial.printf("firmware=0.7.0 guid=%s physical=%u\n", guid.c_str(),
                 IOT_PHYSICAL_OUTPUTS);
   Serial.println(
       "USB provisioning: PROVISION? or PROVISION {expected_revision,settings}; "
@@ -2913,6 +3084,7 @@ void loop() {
     return;
   }
   serialProvision();
+  serviceLocalPortal();
   replayAudit();
   if (restartPending) {
     if (uint32_t(millis() - restartAt) >= 1500) {
@@ -2938,14 +3110,12 @@ void loop() {
   }
   uint32_t now = millis();
   if (IRRIGATION_REMOTE_NODE) {
-    web.handleClient();
     if (restartPending)
       return;
     nodeLoop(millis());
     delay(1);
     return;
   }
-  web.handleClient();
   if (restartPending)
     return;
   now = millis();

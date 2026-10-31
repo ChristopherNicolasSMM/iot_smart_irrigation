@@ -1,0 +1,107 @@
+{
+  "date": "2026-10-31",
+  "firmware": "0.7.0-experimental",
+  "platformio": "6.1.19",
+  "platform": "pioarduino 55.03.38-1",
+  "arduino": "3.3.8",
+  "idf": "5.5.4",
+  "board": "esp32dev",
+  "host": "Linux",
+  "tls_verification": true,
+  "checksum_verification": true,
+  "scope": "Seven ESP32 compile/link profiles with device AP and DNS, upload metadata and merged app bytes. Linux host only; no upload, radio, board test or eFuse change. Hardened is a boot guard, not prepared encryption.",
+  "windows_ci_added": true,
+  "windows_ci_result": "not_verified_in_this_session",
+  "builds": [
+    {
+      "role": "esp32_matrix",
+      "profile": "default",
+      "ram_static_bytes": 67024,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1418924,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_sensor_bench",
+      "profile": "default",
+      "ram_static_bytes": 67168,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1439072,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_remote_node",
+      "profile": "default",
+      "ram_static_bytes": 62108,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1309521,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_matrix",
+      "profile": "synthetic_compile_only",
+      "ram_static_bytes": 67104,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1426120,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_sensor_bench",
+      "profile": "synthetic_compile_only",
+      "ram_static_bytes": 67168,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1439756,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_remote_node",
+      "profile": "synthetic_compile_only",
+      "ram_static_bytes": 62108,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1310521,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    },
+    {
+      "role": "esp32_matrix_hardened",
+      "profile": "hardened_guard_synthetic_compile_only",
+      "ram_static_bytes": 67104,
+      "ram_capacity_bytes": 327680,
+      "flash_app_bytes": 1426120,
+      "app_capacity_bytes": 2818048,
+      "application_offset": "0x50000",
+      "status": "passed"
+    }
+  ],
+  "regression": {
+    "native_cpp_ubsan_executables": 15,
+    "configuration_hash_fixtures": 5,
+    "python_provision_header_tests": 7,
+    "python_usb_tests": 4,
+    "python_flash_layout_tests": 3,
+    "python_production_audit_tests": 16,
+    "node_tests": 288,
+    "contract_fixtures": 26,
+    "browser_synthetic_cases": 24,
+    "arduinojson_host_codec_adapters": 2
+  },
+  "warnings": "Known OneWire/GPIO dependency and reserved filesystem naming warnings; not suppressed.",
+  "source_sha256": {
+    "iot/firmware/src/main.cpp": "a44da77ba532b963399e6daedabf2b17c9652cf9807405235a907cac1527a279",
+    "iot/firmware/include/WifiFallback.h": "43c997f9d05938cca42ee7481ed14880609c4222edfde9dfaa52687cda167634",
+    "iot/firmware/include/ProvisionSettings.h": "3f2b06a578b1d6f3e8c9f0e4ac9f55ed2b0f6d197f7ca0f9c457b5f0fd30258a",
+    "iot/firmware/include/ProvisionCodec.h": "5464f2d7ebf8cb0db3dca8fc3716dbff307bd2c8731c1c2a35c1f6cdbf58e40b",
+    "iot/firmware/portal/LocalPortalPage.h": "e2e044ee031b7e547d2f80838a4bdc7f73f716cc7d1b15d805894c85c838f09d"
+  }
+}

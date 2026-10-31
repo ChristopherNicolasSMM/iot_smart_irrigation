@@ -1,81 +1,87 @@
-# Primeiro build, Wi-Fi e acesso ao portal — firmware 0.6.1
+# Primeiro acesso — firmware 0.7.0: rede própria e portal
 
-Roteiro para ESP32 clássico WROOM-32/esp32dev. Esta entrega foi verificada em software; os passos abaixo ainda precisam ser executados na sua placa. Para este primeiro teste, use somente USB e mantenha as saídas físicas desabilitadas. Não é necessário conectar sensores ou válvulas.
+31/10/2026. O ESP32 cria uma rede protegida para o primeiro cadastro pelo navegador. Com o roteador configurado, tenta conectar a ele; se a conexão Wi-Fi não ocorrer ou cair por 30 segundos, habilita novamente sua rede própria. Usar saídas físicas desabilitadas no primeiro ensaio.
 
-**Use a versão 0.6.1 atual**, que corrige os endereços de gravação da plataforma. Não use binários antigos 0.5.0. Upload normal preserva as regiões de dados da tabela atual; não gravar firmware.factory.bin inteiro em placa que precisa preservar NVS.
+## 1. Atualizar, compilar e gravar
 
-Erros `IOT_*` indefinidos no Windows: a 0.6.1 corrige a colisão entre Provision.h e provision.h. Consulte [atualização segura e diagnóstico](CORRECAO_BUILD_WINDOWS_V061.md), especialmente se houver arquivo privado ou cópia antiga do main.cpp.
+Na raiz do checkout atualizado:
 
-## 1. Atualizar e compilar
-
-Na raiz do repositório atualizado:
-
-```sh
-python -m pip install platformio==6.1.19 pyserial
-python -m platformio run -d iot/firmware -e esp32_matrix
-python -m platformio device list
+```powershell
+& "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run -d iot/firmware -e esp32_matrix
+& "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run -d iot/firmware -e esp32_matrix -t upload --upload-port COM6
+& "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" device monitor --port COM6 --baud 115200
 ```
 
-O perfil matriz serve para testar Wi-Fi/portal sem sensores locais. Use esp32_sensor_bench apenas quando for testar sensores conectados diretamente por cabos curtos. O perfil da placa e os parâmetros elétricos continuam sendo definidos na compilação.
+Substituir COM6 pela porta real. Alternativa com Python próprio: instalar `platformio==6.1.19 pyserial` e usar `python -m platformio` com os mesmos argumentos. Matriz é adequada ao teste de Wi-Fi/portal; bancada e nó possuem funções físicas diferentes. Não selecionar hardened no primeiro ensaio: ele exige preparação de segurança ainda separada.
 
-O provisionamento USB dispensa criar provision.h para este teste: os padrões não contêm Wi-Fi/senhas nem habilitam saídas. Se já existir provision.h privado, confira IOT_PHYSICAL_OUTPUTS=0. Um perfil prov_v1 já salvo na placa prevalece sobre as credenciais e bindings compilados; não muda por novo upload comum.
+Não é necessário criar `provision.h`. O perfil padrão não contém rede/senhas humanas nem habilita relés. Um perfil NVS válido já salvo prevalece sobre valores compilados. O carregador distinto ProvisionConfig.h preserva a correção Windows da 0.6.1: [diagnóstico de IOT_* indefinido](CORRECAO_BUILD_WINDOWS_V061.md).
 
-Se o download do core falhar com CERTIFICATE_VERIFY_FAILED, o compilador ainda não foi executado. Verifique data/hora do computador e cadeia de certificados do Python/proxy corporativo; mantenha TLS validado. Não altere o SDK fixado para tentar esconder esse erro. Esse bloqueio foi superado na conferência 0.5.1 configurando a confiança nos bundles Python efetivamente usados; veja [CERTIFICADOS_COMPILACAO_ESP32.md](CERTIFICADOS_COMPILACAO_ESP32.md).
+Upload normal mantém os endereços verificados (app em 0x50000). Não usar `erase_flash`, `uploadfs` ou gravar `firmware.factory.bin` inteiro em atualização que precisa preservar NVS. Placa com tabela anterior diferente exige avaliação da migração. Para falhas de certificados no computador, ver [diagnóstico de compilação](CERTIFICADOS_COMPILACAO_ESP32.md); não desativar TLS/checksum.
 
-## 2. Gravar
+## 2. Conectar à rede criada pelo ESP32
 
-Substitua COM5 pela porta listada:
+No primeiro boot sem conta cadastrada, o Serial informa:
 
-```sh
-python -m platformio run -d iot/firmware -e esp32_matrix -t upload --upload-port COM5
+```text
+Initial device WiFi password: <senha individual gerada>
+First portal login: admin / same device WiFi password; set permanent admin in portal
+Device WiFi ready: ConectaAgro-<identificador>; portal http://192.168.4.1/
 ```
 
-A gravação normal inclui o portal na flash. Não executar uploadfs ou erase_flash. Em placa com firmware/partições anteriores, avaliar a migração descrita no README antes de gravar; não apagar NVS para resolver problemas de acesso.
+A senha é aleatória, individual e persistida; não há senha universal de fábrica. Ela é exibida ao ser gerada e em cada boot enquanto o primeiro cadastro estiver pendente; após cadastrar a conta permanente, não é exibida automaticamente nos boots seguintes. Guarde-a e **oculte essa linha antes de compartilhar logs**. Nome e senha poderão ser alterados no portal.
 
-## 3. Cadastrar rede e senhas por USB
+1. No celular/computador, conecte à rede `ConectaAgro-...` informada pelo Serial.
+2. Use a senha individual indicada.
+3. Se o sistema avisar que não há Internet, mantenha a conexão.
+4. Abra **http://192.168.4.1/**. DNS/redirecionamento ajudam na detecção do portal; a abertura automática depende do sistema/navegador. Se não aparecer, digite o endereço HTTP completo.
+5. No primeiro cadastro, usuário **admin** e senha **igual à senha inicial da rede do ESP32**.
 
-Feche o monitor Serial do VS Code/PlatformIO e execute:
+Esse acesso inicial só funciona pela interface AP, no desenvolvimento e sem perfil persistido/conta anterior. Ele permite somente estado e provisionamento, com CSRF; não libera comandos, edição da irrigação ou histórico. Uma conta existente não é substituída por essa senha inicial.
 
-```sh
-python iot/firmware/scripts/provision-device.py --port COM5
+## 3. Configurar no portal e reiniciar
+
+A aba **Wi-Fi e acesso** abre automaticamente no primeiro cadastro.
+
+1. Informe o SSID do seu roteador **2,4 GHz** e a senha dele. Para roteador aberto, use a opção de rede sem senha.
+2. Defina uma **senha admin permanente**, com pelo menos 12 bytes. Operador é opcional e deve ter senha diferente da admin.
+3. Em **Rede própria do ESP32**, escolha o nome e, se desejar, uma nova senha de 12–63 caracteres ASCII sem espaços. Campo secreto vazio mantém a senha atual.
+4. Se preferir não associar a nenhum roteador, marque **Usar apenas a rede do ESP32**. Essa opção remove explicitamente SSID/senha do roteador, não abre a rede própria sem senha.
+5. Clique em **Salvar provisionamento e reiniciar** e aguarde cerca de 1,5 s.
+
+Não é preciso enviar comandos USB para cadastrar SSID/senhas. O Serial é usado inicialmente para conhecer a chave individual e acompanhar o diagnóstico. Alterar nomes/senhas não altera GUID, configuração lógica ou históricos.
+
+## 4. Reabrir o portal após salvar
+
+Se a conexão ao roteador funcionar, o Serial informa:
+
+```text
+WiFi connected; portal http://IP_DA_PLACA/
 ```
 
-O assistente pede SSID da rede **2,4 GHz**, senha Wi-Fi, senha admin de pelo menos 12 bytes e senha operador opcional, diferente da admin. Senhas não são exibidas e o assistente não cria arquivo de credenciais. No primeiro cadastro, admin é obrigatório; em atualização, campos secretos vazios mantêm o valor atual.
+Conecte o celular/computador à rede do roteador e abra o IP informado. Ele é obtido por DHCP e pode mudar; não há garantia de hostname mDNS. Entre com `admin` e a **senha permanente cadastrada**, não com a chave temporária inicial. Não é necessário Internet para carregar a interface; agendas/testes continuam sujeitos à validade do relógio e às proteções existentes.
 
-Depois de coletar os dados, o assistente abre a porta, consulta GUID/revisão e salva. Abertura da porta costuma reiniciar DevKits; se a placa não responder ou informar janela fechada, pressione EN/reset e repita. A gravação USB só é aceita nos primeiros três minutos após reset e com controlador/nó ocioso. Consultas PROVISION? continuam disponíveis depois da janela. O script não executa apagamento ou mudança de GUID.
+Se a associação falhar, a rede própria abre após 30 segundos. Reconecte usando o nome/senha próprios definidos e abra **http://192.168.4.1/**. No modo somente AP, ela abre sem esperar por roteador. Se você alterou a senha admin, o navegador poderá pedir nova autenticação.
 
-A placa informa salvamento e reinicia após cerca de 1,5 s. Se o processo retornar erro, os dados não são considerados aplicados; anote apenas o código do erro, sem compartilhar senhas.
+Depois que o roteador volta, a placa mantém o AP enquanto houver clientes conectados. Após 30 segundos de conexão estável e sem clientes no AP, encerra a rede própria. O critério é conexão Wi-Fi ao roteador: uma falha isolada de Internet/servidor central não força o AP se a LAN continua acessível.
 
-## 4. Identificar IP e abrir o portal
+## 5. Recuperar acesso
 
-Aguarde a conexão e consulte:
+- Roteador indisponível/senha errada: aguarde o AP e ajuste a rede em **Wi-Fi e acesso**, usando a conta admin existente.
+- Senha da rede do ESP32 esquecida: no modo desenvolvimento, dentro dos três minutos após reset e com controlador ocioso, envie **WIFI_ACCESS?** pelo Serial. A resposta física inclui nome/senha atuais; não compartilhe essa saída. Fora dessa janela ou no perfil hardened, a consulta de segredo é recusada.
+- Senha admin esquecida: recuperação física USB continua disponível. Fechar o monitor e executar, a partir de `iot/firmware`:
 
-```sh
-python iot/firmware/scripts/provision-device.py --port COM5 --status
+```powershell
+& "$env:USERPROFILE\.platformio\penv\Scripts\python.exe" .\scripts\provision-device.py --port COM6
 ```
 
-Se abrir a porta reiniciar sua placa, a consulta pode ocorrer antes da associação ao Wi-Fi. Nesse caso, consulte o roteador ou abra o monitor e aguarde a mensagem de conexão:
+O assistente preserva GUID/dados; precisa da janela de três minutos após reset. Campos secretos omitidos mantêm valores atuais. Consulta de estado sem segredos: acrescentar `--status`. O comando **PROVISION?** também retorna metadados sem senhas. Abrir a porta pode reiniciar a placa; aguardar a associação antes de concluir que o IP está ausente.
 
-```sh
-python -m platformio device monitor -d iot/firmware --port COM5 --baud 115200
-```
+Registro de provisionamento corrompido não habilita um bypass da senha admin existente: continua exigindo recuperação física. Não apagar NVS para resolver acesso.
 
-A mensagem esperada é `WiFi connected; portal http://IP/`. A rede usa DHCP: o IP pode mudar após reinício; não há promessa de hostname mDNS. Computador/celular precisam alcançar a mesma rede, sem isolamento de clientes/rede de convidados.
+## Limites e validação de bancada
 
-Abra `http://IP_DA_PLACA/` e entre com usuário `admin` e a senha cadastrada. O portal já está na flash, sem servidor Node na placa e sem Internet para carregar a interface. Sem Internet/SNTP, o relógio pode ficar aguardando sincronização; isso não impede o acesso ao portal. Saídas permanecem desabilitadas neste ensaio.
+O portal usa HTTP Basic/CSRF e a rede própria tem senha individual; isso não conclui a preparação de segurança de produção. Wi-Fi e tentativas de conexão rodam em tarefa separada do controlador. O rádio AP/STA é compartilhado e pode haver interrupções breves de cliente ao mudar canal; validar com os equipamentos reais. Se o roteador também usa 192.168.4.0/24, avaliar conflito de sub-rede antes de operar simultaneamente.
 
-Confira as abas Operação, Configuração, Sensores, Eventos, Fila e Wi-Fi e acesso. O usuário `operador`, se cadastrado, deve ver somente Operação/Eventos. Na aba Wi-Fi e acesso, os dados atuais mostram SSID/IP/revisão e presença de segredos, nunca seus valores. Salvar reinicia a placa; mudar a senha pode exigir nova autenticação do navegador.
+Verificar na placa: boot sem perfil, chave/SSID, primeiro cadastro, reinício, conexão válida, senha de roteador errada, perda/retorno da rede, cliente AP mantido, mudança de nome/senhas, contas e persistência após desligar/ligar. `physical=0` é esperado para este ensaio. Os logs de core dump ausente são distintos da criação de rede; o acesso depende das mensagens AP/Wi-Fi acima.
 
-## 5. Recuperar Wi-Fi ou senha esquecida
-
-Conecte por USB, reinicie e use o mesmo assistente dentro da janela. Informe a nova rede/senha admin. Campos omitidos preservam os demais valores. GUID, configurações lógicas, calibrações, ocorrências e histórico não são apagados. Se o registro de provisionamento estiver corrompido, rede/automação ficam bloqueadas e será necessário fornecer novamente todos os dados relevantes, inclusive integração/bindings; o registro antigo não é apagado automaticamente.
-
-Para parâmetros avançados ou remoção explícita de senhas, o assistente aceita `--file CAMINHO_PRIVADO`. O arquivo deve conter somente o objeto settings, com campos desejados: ssid, wifi_password, admin_password, operator_password, portal_url, device_token, portal_ca e bindings. Strings secretas vazias removem o valor; admin não pode ficar vazio. bindings usa arrays de quatro strings em actuators/moisture/temperature; string vazia significa sem vínculo. Use extensão .provision.private.json e mantenha fora do Git/chat. Alterar destino central exige fila vazia; atualizar credenciais do mesmo destino preserva mensagens.
-
-## Registrar o resultado da bancada
-
-Registrar versão, modelo/porta, sucesso/falha do build/upload, tempo de conexão, IP, acesso admin/operador e persistência após desligar/ligar. Nunca enviar senhas, token, CA privada ou arquivo de provisionamento. Testes de relé, sensores, RS485/100 m e TLS com portal central ficam para etapas posteriores.
-
-Na 0.6.0, usar o perfil padrão para o primeiro acesso. `esp32_matrix_hardened` exige preparação prévia de segurança da placa/SDK e bloqueará o boot no ambiente padrão. Backup e migrações: [RECUPERACAO_E_PRODUCAO_ESP32.md](RECUPERACAO_E_PRODUCAO_ESP32.md).
-
-Depois do acesso, consulte o [manual ilustrado do portal local](manual-esp32/README.md), com as seis abas, perfis, agendas, calibração, fila e recuperação. As imagens são de emulação HTTP com dados fictícios.
+[Manual ilustrado](manual-esp32/README.md) · [recuperação e produção](RECUPERACAO_E_PRODUCAO_ESP32.md) · [evidências 0.7.0](VALIDACAO_FIRMWARE_V07.md).

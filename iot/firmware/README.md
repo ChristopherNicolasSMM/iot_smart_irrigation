@@ -1,4 +1,4 @@
-# Firmware experimental 0.6.1
+# Firmware experimental 0.7.0
 
 ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicitamente autorizado pelo usuário com hardware ainda em avaliação. Compilação não comprova funcionamento físico.
 
@@ -33,7 +33,7 @@ Partições: NVS 256 KiB e aplicativo único, sem OTA. Alteração em relação 
 
 ## Provisionar
 
-**Primeiro acesso 0.5.0:** é possível compilar os padrões, gravar e cadastrar Wi-Fi/senhas por USB, sem criar provision.h. Depois, usar a aba Wi-Fi e acesso. Siga [PRIMEIRO_ACESSO_ESP32.md](../docs/PRIMEIRO_ACESSO_ESP32.md). Os passos abaixo continuam válidos para provisionamento compilado; um perfil prov_v1 persistido prevalece sobre credenciais e bindings compilados.
+**Primeiro acesso 0.7.0:** a placa cria rede protegida própria e abre o portal para cadastrar roteador, admin e nome/senha da rede do ESP32. Salvar reinicia; sem roteador por 30 segundos a rede própria volta. Senha individual inicial no Serial; portal em http://192.168.4.1/. Não precisa criar provision.h nem preencher dados por USB. Siga [PRIMEIRO_ACESSO_ESP32.md](../docs/PRIMEIRO_ACESSO_ESP32.md). Provisionamento compilado e recuperação USB continuam opcionais; perfil NVS válido prevalece.
 
 1. Copie include/provision.example.h para include/provision.h (gitignored).
 2. Defina SSID/senha, senhas distintas de pelo menos 12 caracteres para admin e operador. Não envie segredos no chat ou commit.
@@ -44,7 +44,7 @@ Partições: NVS 256 KiB e aplicativo único, sem OTA. Alteração em relação 
 7. Na matriz/nó, configure transceptor 3,3 V e RX16/TX17/DE19, IOT_RS485_ENABLED=1, endereço único do nó 1..4. Saídas desligadas exigem bias externo; firmware não controla nível antes de executar setup.
 8. Para nó remoto, hardware::moistureMask bit0 e temperatureEnabled definem presença local. Calibração/ROM são por slot físico 0. Sensores não instalados continuam desabilitados.
 
-Nenhum perfil de fábrica ativa relés ou Wi-Fi. Perfil padrão é matriz. Não instalar esp32_sensor_bench para ligar sensores diretamente a 100 m.
+Nenhum perfil de fábrica ativa relés. O desenvolvimento habilita a rede própria protegida para cadastro; não tenta conectar ao roteador sem dados válidos. Perfil padrão é matriz. Não instalar esp32_sensor_bench para ligar sensores diretamente a 100 m.
 
 ## Configuração e operação
 
@@ -101,7 +101,7 @@ O resumo é de períodos não observados, não prova de irrigação perdida: pod
 
 ## Portal incluído na flash — 0.2.2
 
-O portal local está separado em [portal/LocalPortalPage.h](portal/LocalPortalPage.h) e integrado ao executável por `PROGMEM`/`send_P`. Compilar e gravar o firmware provisionado inclui a página na memória, sem `uploadfs` ou dependências web externas. Veja [instruções de compilação, gravação e acesso](portal/README.md). Padrões de fábrica continuam sem Wi-Fi/saídas; o portal requer Wi-Fi e senha admin de pelo menos 12 caracteres no arquivo privado de provisionamento. O portal central Node.js continua separado.
+O portal local está separado em [portal/LocalPortalPage.h](portal/LocalPortalPage.h) e integrado ao executável por `PROGMEM`/`send_P`. Compilar e gravar o firmware provisionado inclui a página na memória, sem `uploadfs` ou dependências web externas. Veja [instruções de compilação, gravação e acesso](portal/README.md). Na 0.7.0, o perfil padrão mantém saídas físicas desabilitadas e cria AP protegido para o primeiro cadastro. O portal permite gravar o roteador, a senha admin permanente e o nome/senha da rede própria; provision.h é opcional. O portal central Node.js continua separado.
 
 ## Tempo de 64 bits — 0.3.0
 
@@ -144,7 +144,7 @@ Wi-Fi, senhas, CA, token, GPIO, bindings e presença física de sensores continu
 
 ## Provisionamento sem recompilar — 0.5.0
 
-Rede, senhas locais, origem HTTPS/token/CA e bindings podem ser mantidos pela GUI/USB. Primeiro cadastro/recuperação usa USB nos primeiros três minutos após reset, com controlador ocioso; não há AP aberto ou senha padrão. Alteração válida só entra após reiniciar; erro de rede/senha é recuperado por USB sem apagar dados. Campos secretos omitidos mantêm valores; remoção explícita por string vazia (admin não pode ser removido). Destino central só muda com outbox vazia. Perfil inválido bloqueia rede/automação até recuperação. GPIO, sensores fisicamente presentes, polaridade e habilitação elétrica continuam compilados.
+Rede, senhas locais, origem HTTPS/token/CA e bindings podem ser mantidos pela GUI/USB. Na 0.5.0, o primeiro cadastro usava USB; na 0.7.0 ele usa o portal do AP protegido individualmente, conforme o [roteiro atual](../docs/PRIMEIRO_ACESSO_ESP32.md). A recuperação USB continua nos primeiros três minutos após reset, com controlador ocioso; não há AP aberto ou senha universal. Alteração válida só entra após reiniciar; erro de rede/senha é recuperado por USB sem apagar dados. Campos secretos omitidos mantêm valores; remoção explícita por string vazia (admin não pode ser removido). Destino central só muda com outbox vazia. Perfil inválido bloqueia rede/automação até recuperação. GPIO, sensores fisicamente presentes, polaridade e habilitação elétrica continuam compilados.
 
 Assistente: `python iot/firmware/scripts/provision-device.py --port COM5`; status/IP: mesmo comando com --status. Requer pyserial e monitor fechado. Portas podem reiniciar a placa ao abrir; mensagem de IP também disponível no Serial/roteador. Perfil/NVS/GUID persistem em upload comum. Ver [VALIDACAO_FIRMWARE_V05.md](../docs/VALIDACAO_FIRMWARE_V05.md) para API, precedência, testes e limites. FW-06 permanece parcial: cifragem/secure boot, gestão de produção e migração física não estão concluídos.
 
@@ -159,3 +159,7 @@ Backup criptografado externo, restauração retomável e quarentena, gestão ind
 Consulte [recuperação, migrações e produção](../docs/RECUPERACAO_E_PRODUCAO_ESP32.md), [base IANA](timezones/README.md) e [validação 0.6.0](../docs/VALIDACAO_FIRMWARE_V06.md). O perfil hardened é um bloqueio de boot e **não prepara/cifra uma placa automaticamente**. Não fazer downgrade direto para 0.5.x após migrar a fila. As restrições de atualização em 0x50000 e de factory.bin da 0.5.1 permanecem.
 
 Ferramentas complementares de pré-produção: [auditoria offline e tabela candidata separada](../docs/AUDITORIA_PREPRODUCAO_ESP32.md). `partitions.production-candidate.csv` não está ativada no build padrão. Não altera o roteiro do primeiro teste Wi-Fi/portal.
+
+## Rede própria 0.7.0
+
+GET /api/state e /api/provisioning acrescentam ap_active, ap_ssid, ap_ip e initial_setup. POST /api/provisioning aceita ap_ssid/ap_password opcionais; SSID do roteador vazio é válido no modo somente AP, desde que não reste senha de roteador. Senhas não são devolvidas por HTTP. DHCP/IP do roteador e AP são distintos; o endereço do AP é 192.168.4.1. Ver [validação e migração 0.7.0](../docs/VALIDACAO_FIRMWARE_V07.md).

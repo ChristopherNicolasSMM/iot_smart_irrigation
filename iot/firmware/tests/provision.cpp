@@ -10,6 +10,14 @@ int main() {
   p.wifiPassword = "short";
   assert(validateProvision(p));
   p.wifiPassword = "12345678";
+  p.apSsid = "Horta-config";
+  p.apPassword = "synthetic-ap-key";
+  assert(!validateProvision(p));
+  p.apPassword = "short";
+  assert(validateProvision(p));
+  p.apPassword = "contains spaces";
+  assert(validateProvision(p));
+  p.apPassword = "synthetic-ap-key";
   p.operatorPassword = p.adminPassword;
   assert(validateProvision(p));
   p.operatorPassword = "synthetic-operator";
@@ -55,4 +63,9 @@ int main() {
   assert(!strcmp(provisionWriteRejection(true, true, false, 1, 1, true, false),
                  "outbox_destination_locked"));
   assert(!provisionWriteRejection(true, true, false, 1, 1, true, true));
+  ProvisionSettings offline;
+  offline.adminPassword = "synthetic-admin";
+  assert(!validateProvision(offline));
+  offline.wifiPassword = "synthetic-wifi";
+  assert(validateProvision(offline));
 }

@@ -5,6 +5,7 @@
 namespace irrigation {
 struct ProvisionSettings {
   std::string ssid, wifiPassword, adminPassword, operatorPassword;
+  std::string apSsid, apPassword;
   std::string portalUrl, deviceToken, portalCa;
   std::array<std::string, 4> actuators{}, moisture{}, temperature{};
 };
@@ -61,8 +62,19 @@ inline bool provisionOrigin(const std::string &url) {
   return true;
 }
 inline const char *validateProvision(const ProvisionSettings &p) {
-  if (p.ssid.empty() || !provisionText(p.ssid, 32))
+  if (!provisionText(p.ssid, 32))
     return "wifi_ssid_invalid";
+  if (p.ssid.empty() && !p.wifiPassword.empty())
+    return "wifi_password_without_ssid";
+  if (!provisionText(p.apSsid, 32))
+    return "ap_ssid_invalid";
+  if (!p.apPassword.empty()) {
+    if (p.apPassword.size() < 12 || p.apPassword.size() > 63)
+      return "ap_password_invalid";
+    for (unsigned char c : p.apPassword)
+      if (c < 33 || c > 126)
+        return "ap_password_invalid";
+  }
   if (!provisionText(p.wifiPassword, 64))
     return "wifi_password_invalid";
   const auto n = p.wifiPassword.size();

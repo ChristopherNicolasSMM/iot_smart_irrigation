@@ -13,7 +13,7 @@ python iot/firmware/scripts/backup-device.py restore --port PORTA_USB --file dis
 python iot/firmware/scripts/backup-device.py accept --port PORTA_USB
 ```
 
-Fechar o monitor serial e reiniciar a placa antes de cada operação. A janela USB de manutenção é de três minutos; operações exigem controlador ocioso e saídas conhecidas quando habilitadas. O utilitário abre a porta a 115200. A conexão USB transporta o snapshot em claro antes da cifragem no computador; exige acesso físico confiável. O terminal normal não exporta segredos espontaneamente. Não usar captura de sessão serial durante backup.
+Fechar o monitor serial e reiniciar a placa antes de cada operação. A janela USB de manutenção é de três minutos; operações exigem controlador ocioso e saídas conhecidas quando habilitadas. O utilitário abre a porta a 115200. A conexão USB transporta o snapshot em claro antes da cifragem no computador; exige acesso físico confiável. O perfil de provisionamento não é exportado espontaneamente. Na 0.7.0, a senha gerada da rede própria é exibida no Serial ao criar a chave e nos boots com primeiro cadastro pendente; WIFI_ACCESS? é uma consulta física explícita na janela inicial. Ocultar essas saídas antes de compartilhar logs. Não usar captura de sessão serial durante backup.
 
 O snapshot contém **provisionamento completo com segredos**, envelope lógico de configuração e quatro calibrações/vínculos ROM. Não é imagem completa da NVS: não exporta fila, ocorrências, comandos ou auditoria. Esses registros existentes e o GUID são preservados na recuperação. Limite de snapshot/packet 32.256 bytes; a placa também limita o manifesto persistido a 32.768 bytes e recusa excesso/erro de alocação. O utilitário nunca sobrescreve arquivo existente.
 
@@ -44,3 +44,5 @@ Após restaurar, conferir os dados no portal local e gerar novo token no portal 
 Referência da versão usada: [Espressif — flash encryption, IDF 5.5.4](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32/security/flash-encryption.html). NVS encryption e secure boot são mecanismos distintos. FW-06 de produção permanece parcial até essa integração e a validação física; o bloqueio compilado evita tratá-la como concluída.
 
 Auditoria offline e tabela candidata não ativada: [AUDITORIA_PREPRODUCAO_ESP32.md](AUDITORIA_PREPRODUCAO_ESP32.md). O auditor verifica a configuração/tamanhos fornecidos, não confirma prontidão de produção nem cifra a placa.
+
+Migração 0.7.0: ap_ssid/ap_password opcionais em prov_v1; ap_key guarda a chave individual gerada. Perfis anteriores permanecem válidos sem regravação. A senha AP customizada entra no backup cifrado; a chave local existente é preservada pela restauração no mesmo dispositivo. A conta temporária de primeiro acesso não se aplica a perfis persistidos/corrompidos nem ao hardened.

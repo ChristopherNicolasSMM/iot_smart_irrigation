@@ -5,22 +5,26 @@ namespace irrigation {
 inline void provisionJson(JsonObject obj, const ProvisionSettings &p,
                           bool secrets) {
   obj["ssid"] = p.ssid.c_str();
+  obj["ap_ssid"] = p.apSsid.c_str();
   obj["portal_url"] = p.portalUrl.c_str();
   if (secrets) {
     obj["wifi_password"] = p.wifiPassword.c_str();
+    obj["ap_password"] = p.apPassword.c_str();
     obj["admin_password"] = p.adminPassword.c_str();
     obj["operator_password"] = p.operatorPassword.c_str();
     obj["device_token"] = p.deviceToken.c_str();
     obj["portal_ca"] = p.portalCa.c_str();
   } else {
     obj["has_wifi_password"] = !p.wifiPassword.empty();
+    obj["has_ap_password"] = !p.apPassword.empty();
     obj["has_operator_password"] = !p.operatorPassword.empty();
     obj["has_device_token"] = !p.deviceToken.empty();
     obj["has_portal_ca"] = !p.portalCa.empty();
   }
   JsonObject bindings = obj.createNestedObject("bindings");
   const char *names[] = {"actuators", "moisture", "temperature"};
-  const std::array<std::string, 4> *values[] = {&p.actuators, &p.moisture, &p.temperature};
+  const std::array<std::string, 4> *values[] = {&p.actuators, &p.moisture,
+                                                &p.temperature};
   for (size_t i = 0; i < 3; ++i) {
     JsonArray array = bindings.createNestedArray(names[i]);
     for (const auto &id : *values[i])
@@ -34,6 +38,10 @@ inline bool provisionPatch(JsonObjectConst obj, ProvisionSettings &p,
     std::string *field = nullptr;
     if (key == "ssid")
       field = &p.ssid;
+    else if (key == "ap_ssid")
+      field = &p.apSsid;
+    else if (key == "ap_password")
+      field = &p.apPassword;
     else if (key == "wifi_password")
       field = &p.wifiPassword;
     else if (key == "admin_password")

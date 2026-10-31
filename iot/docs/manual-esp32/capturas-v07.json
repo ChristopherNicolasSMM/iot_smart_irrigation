@@ -1,0 +1,17 @@
+{
+  "firmware": "0.7.0-experimental",
+  "date": "2026-10-31",
+  "scope": "Synthetic API, embedded HTML; no ESP32 radio or hardware execution",
+  "images": [
+    {
+      "file": "imagens/17-primeiro-acesso-ap.png",
+      "sha256": "d5196ed8ac1dfb6c29945ecb2f3397e20d107ba3266b8e9dd94458732ef69df8",
+      "bytes": 186146
+    },
+    {
+      "file": "imagens/18-rede-propria.png",
+      "sha256": "2e8601a5dfe26e1054ba5b9cb6ac9973ffac5ac70d282c949a24a6d34e905413",
+      "bytes": 190992
+    }
+  ]
+}

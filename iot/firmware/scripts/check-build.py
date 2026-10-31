@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix="irrigation-build-check-") as temporary:
     command = [sys.executable, "-m", "platformio", "run", "-d", str(target)]
     for role in ("esp32_matrix", "esp32_sensor_bench", "esp32_remote_node"):
         command.extend(["-e", role])
-    print("Default profiles: outputs/Wi-Fi disabled", flush=True)
+    print("Default profiles: physical outputs disabled; initial device AP enabled", flush=True)
     subprocess.run(command, check=True)
     verify_flash_layout(target)
     synthetic = '#pragma once\n#include "provision.example.h"\n'

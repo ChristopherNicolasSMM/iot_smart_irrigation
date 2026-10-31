@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 31/10/2026 · portal v0.13.0 / firmware experimental v0.6.1. Fonte canônica das próximas entregas.
+Atualizado: 31/10/2026 · portal v0.13.0 / firmware experimental v0.7.0. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -215,3 +215,11 @@ FW-01/FW-06: reproduzida a colisão Provision.h/provision.h em resolução sem d
 Sete testes novos de compilação dos cabeçalhos (incluindo alias de nomes), 14 executáveis nativos C++/UBSan e cinco fixtures de bytes/hash aprovados; regressão USB/layout/auditoria de produção aprovada. Incluído job Windows no CI; não declarar execução Windows confirmada sem resultado do job. Sete builds alvo aprovados em Linux (três padrão, três sintéticos e hardened), com offset 0x50000, imagens fora das partições de dados e aplicativo combinado verificados. Evidências em iot/docs/BUILD_FIRMWARE_V061.json e CORRECAO_BUILD_WINDOWS_V061.md.
 
 O log enviado também usa main.cpp anterior ao provisionamento em runtime: instruída atualização do firmware inteiro, com alternativa de clone novo e preservação de arquivos privados antes de tratar conflitos. Avisos de caminhos longos/littlefs não são a causa desses erros. Nenhum upload, apagamento ou ensaio físico realizado. Próximo marco continua sendo o teste do usuário de USB/Wi-Fi/portal, com saídas desabilitadas.
+
+## Firmware 0.7.0 — rede própria com portal, 31/10/2026
+
+Pedido confirmado: AP no primeiro boot, cadastro de roteador/nome/acessos pelo portal, reinício e AP alternativo sem Wi-Fi. FW-06/FW-08: rede ConectaAgro-GUID, senha individual persistida, primeiro acesso restrito por AP e CSRF com cadastro de admin permanente. Nome/senha AP configuráveis; modo AP-only explícito. Fallback após 30 s, reconexão e fechamento após 30 s estáveis sem clientes AP. Rádio em tarefa separada; DNS/redirecionamento HTTP e IP manual 192.168.4.1. Mantidos autenticação, GUID, NVS, limites e partições; chaves AP novas são aditivas e perfis antigos permanecem válidos.
+
+15 executáveis C++/UBSan e cinco fixtures hash/bytes; política Wi-Fi/tempo/cliente/wrap e restrição do cadastro inicial; validação/codec de AP com redação de senha/legado; 288 testes Node, 26 fixtures/OpenAPI e sintaxe. Navegador Chromium 149: 24 cenários em API sintética, incluindo primeiro acesso e AP-only; capturas atualizadas no manual. Builds alvo/evidências em BUILD_FIRMWARE_V07.json e VALIDACAO_FIRMWARE_V07.md.
+
+Sem upload ou rádio real neste ambiente; validar primeiro boot, associação, fallback, canal, clientes, reinício e persistência na placa do usuário. Chave inicial gerada é exibida no Serial durante o primeiro cadastro e consultável fisicamente com WIFI_ACCESS? em janela/ociosidade; não compartilhar a linha de senha. Perfil corrompido não libera reset de conta por AP. Produção segura/heap/latência/migração física/RS485 continuam pendentes conforme FW-04/FW-05/FW-06/HW-01/HW-02.
