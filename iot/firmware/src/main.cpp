@@ -41,6 +41,7 @@ static_assert(ESP_IDF_VERSION_MAJOR >= 5,
 #include <mbedtls/sha256.h>
 #include <memory>
 #include <time.h>
+#include <sys/time.h>
 #if !IRRIGATION_ROLE_MATRIX
 #include <DallasTemperature.h>
 #include <OneWire.h>
@@ -98,7 +99,7 @@ const char *temperatureBinding[4] = {IOT_TEMPERATURE_ID_1, IOT_TEMPERATURE_ID_2,
                                      IOT_TEMPERATURE_ID_4};
 FirmwareConfig config;
 wire::Lease nodeLease;
-std::atomic<bool> authBlocked{false}, clockSynchronized{false};
+std::atomic<bool> authBlocked{false}, clockSynchronized{false}, clockFromBrowser{false};
 String guid, bootId, configRaw, configHash, csrf;
 uint64_t nodeTokens[4] = {}, nodeBootToken = 0;
 uint32_t revision = 0, sequence = 0, session = 0, remoteSequence = 0,
@@ -1219,7 +1220,7 @@ String recoveryBackup(String &error) {
   DynamicJsonDocument doc(65536);
   doc["schema_version"] = 1;
   doc["device_guid"] = guid;
-  doc["firmware"] = "0.7.2-experimental";
+  doc["firmware"] = "0.8.0-experimental";
   doc["recorded_at"] = clockReady() ? iso(time(nullptr)) : String();
   provisionJson(doc.createNestedObject("settings"), provision, true);
   if (!lockStore()) {
@@ -1736,7 +1737,7 @@ void serviceLocalPortal() {
 
 String statusJson(bool csrfToken, int role = 0) {
   DynamicJsonDocument d(4096);
-  d["firmware"] = "0.7.2-experimental";
+  d["firmware"] = "0.8.0-experimental";
   d["recovery_hold"] = recoveryHold;
   d["tzdb_version"] = tzdbVersion;
   JsonObject protections = d.createNestedObject("security");
@@ -1767,6 +1768,7 @@ String statusJson(bool csrfToken, int role = 0) {
     capabilities["calibrate"] =
         !bootstrapMode && role == 2 && !IRRIGATION_ROLE_MATRIX;
     capabilities["outbox"] = !bootstrapMode && role == 2;
+    capabilities["clock_setup"] = !bootstrapMode && role == 2;
     capabilities["command"] = !bootstrapMode && !IRRIGATION_REMOTE_NODE;
     d["local_role_type"] =
         IRRIGATION_REMOTE_NODE
@@ -1776,6 +1778,9 @@ String statusJson(bool csrfToken, int role = 0) {
   }
   d["revision"] = revision;
   d["clock_valid"] = clockReady();
+  d["clock_source"] = !clockReady() ? "unset" :
+      (clockFromBrowser.load() ? "browser" : "sntp");
+  d["device_time_utc"] = clockReady() ? iso(time(nullptr)) : String();
   d["time_t_bits"] = sizeof(time_t) * 8;
   d["calendar_max_year"] = maxCalendarYear;
   d["occurrence_journal_ready"] = occurrencesReady;
@@ -1802,7 +1807,8 @@ String statusJson(bool csrfToken, int role = 0) {
 }
 int authenticate() {
   if (!bootstrapRequestAllowed(bootstrapMode, apInterfaceRequest(),
-                               web.uri().c_str())) {
+                               web.uri().c_str(), web.method() == HTTP_GET,
+                               web.method() == HTTP_POST)) {
     web.send(403, "application/json", "{\"error\":\"initial_setup_required\"}");
     return 0;
   }
@@ -1868,6 +1874,41 @@ void localPortal() {
       return;
     web.sendHeader("Cache-Control", "no-store");
     web.send(200, "application/json", statusJson(true, role));
+  });
+  web.on("/api/clock", HTTP_POST, [] {
+    const int role = authenticate();
+    if (!role) return;
+    if (role != 2 || web.header("X-CSRF-Token") != csrf) {
+      web.send(403, "application/json", role != 2 ?
+          "{\"error\":\"administrator_required\"}" : "{\"error\":\"csrf_invalid\"}");
+      return;
+    }
+    const String raw = web.arg("plain");
+    DynamicJsonDocument input(256);
+    if (raw.length() > 128 || deserializeJson(input, raw) ||
+        !input.is<JsonObject>() || !input["epoch_s"].is<int64_t>()) {
+      web.send(400, "application/json", "{\"error\":\"clock_invalid\"}");
+      return;
+    }
+    const int64_t epoch = input["epoch_s"].as<int64_t>();
+    const char *reason = clockSetupRejection(role, true, bootstrapMode,
+        recoveryIdle() && !recoveryHold && !recoveryFault && !provisionFault,
+        clockReady(), epoch);
+    if (reason) {
+      web.send(409, "application/json", String("{\"error\":\"") + reason + "\"}");
+      return;
+    }
+    timeval value{};
+    value.tv_sec = static_cast<time_t>(epoch);
+    if (settimeofday(&value, nullptr) != 0) {
+      web.send(503, "application/json", "{\"error\":\"clock_set_failed\"}");
+      return;
+    }
+    clockFromBrowser.store(true);
+    clockSynchronized.store(true);
+    // Normal observation/recovery handles the first valid instant. Do not
+    // reset journals, checkpoints, previousEpoch or execution protections.
+    web.send(200, "application/json", "{\"clock_set\":true}");
   });
   web.on("/api/recovery/activate", HTTP_POST, [] {
     if (!administrator())
@@ -3061,7 +3102,10 @@ void setup() {
       return;
     }
     esp_sntp_set_time_sync_notification_cb(
-        [](struct timeval *) { clockSynchronized.store(true); });
+        [](struct timeval *) {
+          clockFromBrowser.store(false);
+          clockSynchronized.store(true);
+        });
     configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
     if (config.timezone.length())
       selectTimezone(config.timezone.c_str());
@@ -3074,7 +3118,7 @@ void setup() {
     Serial.println(
         "local_access_unavailable: preserve NVS; check provisioning/security");
   }
-  Serial.printf("firmware=0.7.2 guid=%s physical=%u\n", guid.c_str(),
+  Serial.printf("firmware=0.8.0 guid=%s physical=%u\n", guid.c_str(),
                 IOT_PHYSICAL_OUTPUTS);
   Serial.println(
       "USB provisioning: PROVISION? or PROVISION {expected_revision,settings}; "

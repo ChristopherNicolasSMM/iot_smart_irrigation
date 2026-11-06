@@ -1,4 +1,4 @@
-# Primeiro acesso — firmware 0.7.2: rede própria e portal
+# Primeiro acesso — firmware 0.8.0: rede própria e portal
 
 31/10/2026. O ESP32 cria uma rede sem senha para o primeiro cadastro pelo navegador. Com o roteador configurado, tenta conectar a ele; se a conexão Wi-Fi não ocorrer ou cair por 30 segundos, habilita novamente sua rede própria. Usar saídas físicas desabilitadas no primeiro ensaio.
 
@@ -35,11 +35,11 @@ Device WiFi ready: ConectaAgro-<identificador>; portal http://192.168.4.1/
 
 Na 0.7.2, o AP de desenvolvimento sem senha personalizada fica aberto, inclusive no fallback. Uma senha AP já personalizada é preservada. A chave aleatória antiga em NVS deixa de ser usada pelo perfil de desenvolvimento e não precisa ser apagada. O perfil hardened mantém a política de AP protegido.
 
-Esse acesso inicial só funciona pela interface AP, no desenvolvimento e sem perfil persistido/conta anterior. Ele permite somente estado e provisionamento, com CSRF; não libera comandos, edição da irrigação ou histórico. Uma conta existente não é substituída por essa senha inicial.
+Esse acesso inicial só funciona pela interface AP, no desenvolvimento e sem perfil persistido/conta anterior. Na 0.8.0, o mesmo painel mostra Operação, Configuração, Sensores, Eventos, Fila e Wi-Fi e acesso. Durante o primeiro cadastro permite consultas locais e provisionamento, com CSRF; comandos e alterações de irrigação aguardam a conta permanente. Uma conta existente não é substituída por essa senha inicial.
 
 ## 3. Configurar no portal e reiniciar
 
-A aba **Wi-Fi e acesso** abre automaticamente no primeiro cadastro.
+A aba **Operação** é a entrada do painel único. No primeiro cadastro, use **Concluir cadastro** ou a aba **Wi-Fi e acesso**. Não é necessário cadastrar um roteador para habilitar o uso local.
 
 1. Informe o SSID do seu roteador **2,4 GHz** e a senha dele. Para roteador aberto, use a opção de rede sem senha.
 2. Defina uma **senha admin permanente**, com pelo menos 12 bytes. Operador é opcional e deve ter senha diferente da admin.
@@ -84,3 +84,15 @@ O portal usa HTTP Basic/CSRF; o AP de desenvolvimento fica aberto até definir u
 Verificar na placa: boot sem perfil, chave/SSID, primeiro cadastro, reinício, conexão válida, senha de roteador errada, perda/retorno da rede, cliente AP mantido, mudança de nome/senhas, contas e persistência após desligar/ligar. `physical=0` é esperado para este ensaio. Os logs de core dump ausente são distintos da criação de rede; o acesso depende das mensagens AP/Wi-Fi acima.
 
 [Manual ilustrado](manual-esp32/README.md) · [recuperação e produção](RECUPERACAO_E_PRODUCAO_ESP32.md) · [evidências 0.7.0](VALIDACAO_FIRMWARE_V07.md).
+
+## 6. Operar offline pelo mesmo portal — 0.8.0
+
+Wi-Fi e acesso, Operação, Configuração, Sensores, Eventos e Fila fazem parte da mesma página embutida na placa, acessível pelo AP ou pelo IP do roteador. Não é preciso rodar o servidor Node, ter Internet ou usar um portal separado para irrigar localmente.
+
+1. Conclua uma vez o cadastro da conta permanente em **Wi-Fi e acesso**. Para dispensar o roteador, marque **Usar apenas a rede do ESP32**, salve e reconecte após reiniciar.
+2. Entre com a conta permanente em **http://192.168.4.1/** pela rede do ESP32.
+3. Em **Operação**, confira o relógio. Se estiver inválido, confira a data/hora do celular ou computador e clique em **Usar hora deste celular/computador**. A hora é enviada em UTC, mantendo o fuso definido nas agendas. Sem RTC com bateria ou sincronização de rede, repita depois de desligar/reiniciar.
+4. Cadastre componentes/conjuntos e agendas em **Configuração**, confira sensores e eventos, e use os testes em **Operação** quando as proteções permitirem. Esses recursos usam a API da própria placa, sem serviço externo.
+5. Mantenha **Wi-Fi e acesso** para ajustes de rede e contas, no mesmo menu.
+
+A hora do navegador só é aceita de administrador, com CSRF, após cadastro, com controlador ocioso, sem quarentena/falha de recuperação e enquanto o relógio ainda estiver inválido. Não substitui uma hora já válida. Ajustar a hora permite avaliar as agendas habilitadas normalmente; não ignora diário de ocorrências, revisão aplicada, saídas conhecidas, pausas ou bloqueios. Uma configuração gerenciada pela central continua sem edição local; a matriz é responsável pelos comandos de um nó remoto. `physical=0` continua impedindo acionamento real. O ESP32 não hospeda o servidor Node/SQLite nem todas as funções de gestão central.

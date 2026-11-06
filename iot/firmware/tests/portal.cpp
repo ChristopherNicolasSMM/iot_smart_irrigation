@@ -12,4 +12,15 @@ int main(){
  assert(!strcmp(draftRejection(2,true,false,false,false,6,7),"revision_conflict"));
  assert(!strcmp(draftRejection(2,true,false,false,false,UINT32_MAX,UINT32_MAX),"revision_exhausted"));
  assert(!draftRejection(2,true,false,false,false,0,0));
+ const int64_t epoch = 1793952000LL;
+ assert(!clockSetupRejection(2,true,false,true,false,epoch));
+ assert(!strcmp(clockSetupRejection(1,true,false,true,false,epoch),"administrator_required"));
+ assert(!strcmp(clockSetupRejection(2,false,false,true,false,epoch),"csrf_invalid"));
+ assert(!strcmp(clockSetupRejection(2,true,true,true,false,epoch),"initial_setup_required"));
+ assert(!strcmp(clockSetupRejection(2,true,false,false,false,epoch),"controller_not_idle"));
+ assert(!strcmp(clockSetupRejection(2,true,false,true,true,epoch),"clock_already_valid"));
+ assert(!strcmp(clockSetupRejection(2,true,false,true,false,minClockEpoch-1),"clock_invalid"));
+ assert(!strcmp(clockSetupRejection(2,true,false,true,false,maxClockEpoch+1),"clock_invalid"));
+ assert(!clockSetupRejection(2,true,false,true,false,minClockEpoch));
+ assert(!clockSetupRejection(2,true,false,true,false,maxClockEpoch));
 }

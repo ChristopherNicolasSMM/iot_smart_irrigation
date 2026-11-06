@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-06",
+  "firmware": "0.8.0-experimental",
+  "scope": "Chromium with synthetic API; no ESP32 hardware",
+  "images": [
+    {
+      "file": "imagens/19-portal-unico-primeiro-acesso.png",
+      "sha256": "bd6c8070fa6b226b9eae05f5972bdb03e1aab421aefcc2b9a2af5ba9f2f71121",
+      "width": 1366,
+      "height": 1389
+    },
+    {
+      "file": "imagens/20-operacao-offline.png",
+      "sha256": "3712bd62a098eede58035151bb2ae71a175724a7119f7de8095428cda93e3d37",
+      "width": 1366,
+      "height": 1295
+    }
+  ]
+}

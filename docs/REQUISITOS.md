@@ -195,3 +195,7 @@ O ESP32 deve criar sua própria rede com portal no primeiro acesso, permitir cad
 Na 0.7.1, por solicitação do usuário, o primeiro login do portal é usuário `admin`, senha `admin`; a chave da rede Wi-Fi permanece individual. Após o cadastro, vale a senha permanente definida no portal.
 
 Na 0.7.2, por solicitação do usuário, a rede própria de desenvolvimento não tem senha inicial. Sem senha AP personalizada, permanece aberta também no fallback; uma senha personalizada existente é preservada. Login inicial do portal continua admin/admin. Hardened mantém AP protegido.
+
+## Portal local único e operação offline — 06/11/2026
+
+Wi-Fi/acessos e operação/configuração da irrigação devem integrar o mesmo portal embutido, acessível pelo AP e pela rede existente. Sem roteador/Internet, a conta permanente e configuração local permitem operação pelo AP. Primeiro cadastro mantém o menu completo com consultas e alterações de irrigação bloqueadas até a conta permanente. Painel deve permitir informar a hora do navegador quando o relógio estiver inválido após boot offline, sem contornar proteções, revisão/autoridade da central ou diários. Sem RTC com bateria não há garantia de hora válida após desligar.

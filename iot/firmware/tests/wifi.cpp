@@ -29,6 +29,18 @@ int main() {
   assert(!bootstrapRequestAllowed(true, true, "/api/command"));
   assert(!bootstrapRequestAllowed(true, true, "/api/configuration/draft"));
   assert(bootstrapRequestAllowed(false, false, "/api/command"));
+  for (const char *route : {"/", "/api/state", "/api/provisioning", "/api/configuration",
+       "/api/timezones", "/api/sensors", "/api/events", "/api/outbox"}) {
+    assert(bootstrapRequestAllowed(true, true, route, true, false));
+    assert(!bootstrapRequestAllowed(true, false, route, true, false));
+    if (std::string(route) != "/api/provisioning")
+      assert(!bootstrapRequestAllowed(true, true, route, false, true));
+  }
+  assert(bootstrapRequestAllowed(true, true, "/api/provisioning", false, true));
+  assert(!bootstrapRequestAllowed(true, true, "/api/clock", false, true));
+  assert(!bootstrapRequestAllowed(true, true, "/api/calibration", false, true));
+  assert(!bootstrapRequestAllowed(true, true, "/api/outbox/retry", false, true));
+  assert(!bootstrapRequestAllowed(true, true, "/api/events/replay", false, true));
   assert(needsInitialPortal(false, false, false, true));
   assert(!needsInitialPortal(false, true, false, true));
   assert(!needsInitialPortal(true, false, false, true));

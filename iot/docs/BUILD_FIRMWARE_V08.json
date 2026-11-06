@@ -1,0 +1,31 @@
+{
+  "date": "2026-11-06",
+  "firmware": "0.8.0-experimental",
+  "host": "Linux",
+  "platformio": "6.1.19",
+  "platform": "pioarduino 55.03.38-1",
+  "arduino": "3.3.8",
+  "idf": "5.5.4",
+  "board": "esp32dev",
+  "role": "esp32_matrix",
+  "profile": "default_physical_outputs_disabled",
+  "status": "passed",
+  "ram_static_bytes": 67024,
+  "ram_capacity_bytes": 327680,
+  "flash_app_bytes": 1422792,
+  "app_capacity_bytes": 2818048,
+  "application_offset": "0x50000",
+  "extra_images_outside_data": true,
+  "merged_app_bytes_verified": true,
+  "tls_verification": true,
+  "checksum_verification": true,
+  "source_sha256": {
+    "src/main.cpp": "c16135864b404ce4a133d41668804c376326cfaa135d24ff2206eb865147ecd0",
+    "include/LocalPortalPolicy.h": "947c30f9691c9a21043e5f5e79ac1d4c9a357222cce6dd6525d0ee80be95bf2e",
+    "include/WifiFallback.h": "845061c714e1e2142ae483594fd49ab893a7f72ff8bf9d2f66248f2fd5dccf10",
+    "portal/LocalPortalPage.h": "08834368efd51ada3bd3772d38fafe63e84890eb28c039b8a8ac4afe94a7e7cc"
+  },
+  "scope": "One Linux ESP32 matrix compile/link and flash metadata verification. No other target profiles, Windows build, upload, radio, hardware or eFuse operations. Software: 288 Node tests, 15 C++ executables with UBSan, 5 hash fixtures, 26 contract fixtures and 26 browser cases with a synthetic API.",
+  "warnings": "Reserved filesystem partition-name warning retained; RAM figure is static, not runtime heap.",
+  "environment_note": "Initial setup encountered download mirror timeouts/checksum rejection and temporary filesystem capacity; package installation retried with validation and relocated task packages. Final build succeeded."
+}

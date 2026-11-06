@@ -26,9 +26,14 @@ struct WifiFallback {
   }
 };
 inline bool bootstrapRequestAllowed(bool bootstrap, bool apInterface,
-                                    const std::string &uri) {
-  return !bootstrap || (apInterface && (uri == "/" || uri == "/api/state" ||
-                                        uri == "/api/provisioning"));
+                                    const std::string &uri,
+                                    bool isGet = true, bool isPost = false) {
+  if (!bootstrap) return true;
+  if (!apInterface) return false;
+  if (uri == "/api/provisioning") return isGet || isPost;
+  return isGet && (uri == "/" || uri == "/api/state" ||
+      uri == "/api/configuration" || uri == "/api/timezones" ||
+      uri == "/api/sensors" || uri == "/api/events" || uri == "/api/outbox");
 }
 inline bool needsInitialPortal(bool hardened, bool storedProfile,
                                bool recoveryFault, bool missingAdmin) {

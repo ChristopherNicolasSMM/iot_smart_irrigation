@@ -1,4 +1,4 @@
-# Firmware experimental 0.7.2
+# Firmware experimental 0.8.0
 
 ESP32 clássico / DevKitC V4 com WROOM-32E, flash 4 MB. Desenvolvimento explicitamente autorizado pelo usuário com hardware ainda em avaliação. Compilação não comprova funcionamento físico.
 
@@ -163,3 +163,11 @@ Ferramentas complementares de pré-produção: [auditoria offline e tabela candi
 ## Rede própria 0.7.0
 
 GET /api/state e /api/provisioning acrescentam ap_active, ap_ssid, ap_ip e initial_setup. POST /api/provisioning aceita ap_ssid/ap_password opcionais; SSID do roteador vazio é válido no modo somente AP, desde que não reste senha de roteador. Senhas não são devolvidas por HTTP. DHCP/IP do roteador e AP são distintos; o endereço do AP é 192.168.4.1. Ver [validação e migração 0.7.0](../docs/VALIDACAO_FIRMWARE_V07.md).
+
+## Portal único e operação offline — 0.8.0
+
+A mesma página e API locais atendem AP e rede do roteador, com as seis abas visíveis desde o cadastro. O primeiro acesso permite consultas e cadastro da conta, sem liberar acionamento/alterações pela credencial temporária. Após salvar a conta permanente, modo AP-only opera sem Internet; roteador não é obrigatório. A interface central Node continua sendo outra aplicação, com gestão central não hospedada pelo ESP32.
+
+`GET /api/state` acrescenta `clock_source` (`unset`, `sntp`, `browser`), `device_time_utc` e `capabilities.clock_setup`. `POST /api/clock` recebe `{ "epoch_s": 1793952000 }` e exige admin/CSRF, cadastro concluído, ociosidade/saídas conhecidas quando físicas, sem reinício pendente/quarentena/falha e relógio ainda inválido. Aceita o intervalo UTC 2020–9999, retorna `clock_set:true`; erros incluem `clock_invalid`, `clock_already_valid`, `controller_not_idle` e `clock_set_failed`. Não altera fuso, NVS, diários, checkpoint ou proteções. SNTP posterior pode assumir o relógio novamente. Hora do navegador é uma declaração administrativa, não autenticação temporal de produção.
+
+No primeiro cadastro, somente GET das rotas conhecidas de consulta e GET/POST de provisionamento são aceitos pelo AP; POST de configuração, relógio, comandos, calibração e fila continuam bloqueados. Sem RTC com bateria, desligar/reiniciar sem Internet exige informar novamente a hora pelo painel. [Roteiro offline](../docs/PRIMEIRO_ACESSO_ESP32.md) e [revisão 0.8.0](../docs/VALIDACAO_FIRMWARE_V08.md).

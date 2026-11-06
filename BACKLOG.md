@@ -1,6 +1,6 @@
 # Backlog — IoT Smart Irrigation
 
-Atualizado: 31/10/2026 · portal v0.13.0 / firmware experimental v0.7.2. Fonte canônica das próximas entregas.
+Atualizado: 06/11/2026 · portal v0.13.0 / firmware experimental v0.8.0. Fonte canônica das próximas entregas.
 
 Status: **Entregue/testado** = implementação e testes de software; **A validar** = depende do usuário; **Pendente** = não implementado; **Parcial** = cobertura/escopo ainda incompletos. Nenhum status de software comprova validação física.
 
@@ -231,3 +231,11 @@ FW-06/FW-08: primeiro login do portal alterado a pedido para `admin`/`admin`; re
 ## Firmware 0.7.2 — rede inicial sem senha, 31/10/2026
 
 FW-06/FW-08: AP de desenvolvimento aberto quando não há senha AP personalizada; login inicial do portal admin/admin preservado. SDK recebe nullptr para AP aberto. Senhas AP personalizadas e contas existentes são preservadas; chave legada permanece em NVS sem ser usada pelo desenvolvimento. Hardened mantém a proteção anterior. GUI/guia atualizados. Regressão nativa e modelo do portal executados; sem build alvo, upload ou ensaio de rádio desta revisão.
+
+## Firmware 0.8.0 — revisão do portal único/offline, 06/11/2026
+
+FW-08: confirmado mesmo HTML/APIs no AP/STA; a aparência distinta era causada pelo menu oculto do cadastro. Menu completo desde o primeiro acesso, aviso global e atalho de cadastro; consultas das seis abas liberadas no AP inicial, alterações de irrigação/relógio/fila continuam bloqueadas. Conta permanente habilita operação local pelo AP sem exigir SSID de roteador. Central Node e suas funções de gestão não são executadas no ESP32.
+
+FW-07/FW-08: relógio offline pela hora UTC do navegador quando inválido, admin/CSRF/cadastro concluído/ociosidade/sem quarentena. Não sobrescreve relógio válido nem altera fuso, diários, checkpoint ou bloqueios. SNTP continua disponível. Hora precisa ser restabelecida após desligar sem RTC/rede. GUI informa origem/hora; autorização e limites testados em C++ e cenários de navegador sintéticos.
+
+Regressão: 288 testes Node, sintaxe e 15 executáveis C++/UBSan com cinco fixtures hash; 26 cenários Chromium 153 em API sintética, zero erros JS e largura desktop/móvel; matriz padrão compilada em Linux com offset/layout/binário combinado verificados. Evidências em VALIDACAO_FIRMWARE_V08.md e BUILD_FIRMWARE_V08.json. Outros perfis/Windows desta revisão não compilados. GUID/NVS/partições preservados. Sem ensaio físico; confirmar na placa AP-only, relógio após boot, cadastro, navegação/configuração e testes com saídas inicialmente desabilitadas. FW-04/FW-05/FW-06/HW-01/HW-02 permanecem com validações pendentes.

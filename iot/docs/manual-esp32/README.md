@@ -1,12 +1,22 @@
 # Manual ilustrado — Portal local do ESP32
 
-**Conecta Agro · primeiro acesso atualizado para firmware 0.7.2 experimental · 31/10/2026**
+**Conecta Agro · primeiro acesso atualizado para firmware 0.8.0 experimental · 31/10/2026**
 
 A 0.7.0 introduziu a rede própria; a 0.7.2 deixa o acesso inicial sem senha Wi-Fi, com primeiro cadastro pelo navegador e acesso alternativo quando o roteador estiver indisponível. As duas capturas de rede abaixo foram feitas na 0.7.0 e ainda mostram o texto anterior de rede protegida; as 16 capturas anteriores, identificadas pelo registro original, continuam ilustrando a operação da 0.6.0. A correção de cabeçalhos Windows da 0.6.1 permanece incluída.
 
 Este manual mostra o portal que acompanha o firmware do ESP32. As imagens foram capturadas em navegador a partir da **mesma página embutida na flash**, com uma API de demonstração no computador. Nomes, IP, rede, sensores, registros e estados de saída são fictícios. Nenhuma placa ou válvula foi acionada.
 
 O portal central, executado em Node.js/Railway, é outra aplicação. Este documento é sobre o painel acessado pelo **IP da placa**. Para instalar e acessar pela primeira vez, siga o [guia de primeiro acesso](../PRIMEIRO_ACESSO_ESP32.md).
+
+## Portal único na 0.8.0
+
+Wi-Fi e irrigação estão no mesmo painel, tanto na rede própria quanto no roteador. O primeiro cadastro mantém todas as abas e bloqueia alterações/acionamento até cadastrar a conta permanente. Para operar sem roteador, escolha somente a rede do ESP32.
+
+![Painel único com as seis abas durante o primeiro acesso](imagens/19-portal-unico-primeiro-acesso.png)
+
+![Operação pelo AP após informar a hora pelo navegador](imagens/20-operacao-offline.png)
+
+*Capturas 0.8.0 com API sintética: estados de saída, conjunto e data são demonstrativos. Não houve acionamento físico. [Registro dos 26 cenários](../LOCAL_PORTAL_UI_V08.json) e [hashes das imagens](capturas-v08.json). O script `scripts/local-portal-ui-check.js` reproduz essas capturas em `/tmp/iot080-initial.png` e `/tmp/iot080-offline.png`.*
 
 ## Navegação rápida
 
@@ -31,13 +41,13 @@ Depois de compilar/gravar a 0.7.0, sem conta anterior:
 
 1. Abra o monitor Serial em 115200 e pressione EN/reset. Anote o SSID informado por `Device WiFi ready`.
 2. Conecte o computador/celular à rede `ConectaAgro-<final do GUID>` sem senha Wi-Fi na 0.7.2. É esperado o aviso de rede sem Internet; permaneça conectado.
-3. Abra **http://192.168.4.1/** no navegador normal. Login inicial: usuário **admin**, senha **admin** na 0.7.2. Esse acesso fica restrito ao cadastro inicial.
-4. Na aba **Wi-Fi e acesso**, cadastre uma senha admin permanente. Informe o nome/senha do roteador de 2,4 GHz ou escolha **Usar apenas a rede do ESP32**. Opcionalmente personalize nome e senha da rede própria.
+3. Abra **http://192.168.4.1/** no navegador normal. Login inicial: usuário **admin**, senha **admin** na 0.7.2. Na 0.8.0, todas as abas aparecem no mesmo painel; antes da conta permanente, operações ficam bloqueadas.
+4. Use **Concluir cadastro** ou a aba **Wi-Fi e acesso** para cadastrar uma senha admin permanente. Informe o nome/senha do roteador de 2,4 GHz ou escolha **Usar apenas a rede do ESP32**. Opcionalmente personalize nome e senha da rede própria.
 5. Clique em **Salvar provisionamento e reiniciar**. Com roteador disponível, entre pelo IP que aparecer no Serial/roteador usando a senha admin permanente. Sem roteador, reconecte à rede própria e ao endereço acima.
 
 ![Primeiro cadastro no portal da rede do ESP32](imagens/17-primeiro-acesso-ap.png)
 
-*Captura da 0.7.0 com API sintética: somente Wi-Fi e acesso aparece durante o primeiro cadastro. Nenhuma chave real foi incluída.*
+*Captura da 0.7.0 com API sintética: somente Wi-Fi e acesso aparecia durante o primeiro cadastro. Na 0.8.0, o menu completo permanece visível; a figura é histórica. Nenhuma chave real foi incluída.*
 
 Para dispositivo já configurado, use as contas existentes. Após **30 segundos sem conexão ao roteador**, a rede própria volta automaticamente. Ao reconectar ao roteador, ela fecha depois de 30 segundos estáveis e nenhum cliente conectado ao AP. O endereço do roteador pode mudar pelo DHCP; o endereço próprio permanece `192.168.4.1`.
 
@@ -68,6 +78,12 @@ Na aba **Operação**, confira:
 | Perdas de envio registradas | Contador de falhas/perdas de enfileiramento; não significa automaticamente perda de todo o histórico local nem confirma recuperação remota. |
 | Cartão do conjunto | Desligado, em execução ou com estado elétrico desconhecido. A interface utiliza o ID do conjunto, por exemplo `zone_1`. |
 | Diagnóstico da placa | Detalhes técnicos, permissões e condições atuais; abra apenas quando precisar investigar. |
+
+### Usar o mesmo painel offline
+
+As seis abas estão na mesma página servida pelo ESP32, tanto pela rede própria quanto pelo roteador. Após cadastrar a conta permanente, o modo **Usar apenas a rede do ESP32** permite configurar irrigação, consultar sensores/eventos e executar testes sem Internet ou servidor Node. A aba Wi-Fi permanece no mesmo menu.
+
+Depois de ligar sem Internet, o relógio pode ficar inválido. Em **Operação**, confira a data/hora do celular/computador e use **Usar hora deste celular/computador**. O botão só fica disponível para administrador após o cadastro, com relógio inválido e dispositivo ocioso, sem quarentena. Sem RTC com bateria, repita após desligar/reiniciar. O relógio deve estar correto para avaliar agendas. Esse ajuste não remove bloqueios físicos/de recuperação nem a autoridade de uma central configurada.
 
 ### Testar e parar um conjunto
 

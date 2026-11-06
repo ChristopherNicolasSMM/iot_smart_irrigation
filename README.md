@@ -6,7 +6,7 @@ Sistema de irrigação configurável para múltiplos ESP32, com portal central, 
 
 ## Estado atual
 
-Esta entrega contém portal central/local, simulador determinístico, persistência SQLite e cliente HTTP independente. Inclui propriedades e áreas, conjuntos por solenoide, agendas por dia, diagnóstico, integração HTTP(S), gestão de acesso e histórico filtrado com exportação CSV/JSON e arquivamento/transferência com histórico por propriedade e gestão auditada da fila. Inclui proteção por chave externa, migração/rotação, backup criptografado e recuperação em quarentena do portal/cliente, encaminhamento HTTP e ensaio de estabilidade documentado. Contém agora firmware experimental 0.7.2 em [iot/firmware](iot/firmware/README.md); inclui controlador, portal local embutido com editor visual de agendas/calibração/eventos, base temporal de 64 bits, cliente HTTPS e RS485; validação física e paridade completa permanecem pendentes.
+Esta entrega contém portal central/local, simulador determinístico, persistência SQLite e cliente HTTP independente. Inclui propriedades e áreas, conjuntos por solenoide, agendas por dia, diagnóstico, integração HTTP(S), gestão de acesso e histórico filtrado com exportação CSV/JSON e arquivamento/transferência com histórico por propriedade e gestão auditada da fila. Inclui proteção por chave externa, migração/rotação, backup criptografado e recuperação em quarentena do portal/cliente, encaminhamento HTTP e ensaio de estabilidade documentado. Contém agora firmware experimental 0.8.0 em [iot/firmware](iot/firmware/README.md); inclui controlador, portal local embutido com editor visual de agendas/calibração/eventos, base temporal de 64 bits, cliente HTTPS e RS485; validação física e paridade completa permanecem pendentes.
 
 ## Executar
 
@@ -24,7 +24,7 @@ Sequência solicitada: **documentação → portal e simulação → avaliação
 
 ## Documentos
 
-- [Primeiro acesso por rede própria e portal — firmware 0.7.0](iot/docs/PRIMEIRO_ACESSO_ESP32.md)
+- [Primeiro acesso e operação offline no portal único — firmware 0.8.0](iot/docs/PRIMEIRO_ACESSO_ESP32.md)
 
 - [Correção de build Windows — IOT_* indefinido (firmware 0.6.1)](iot/docs/CORRECAO_BUILD_WINDOWS_V061.md)
 
